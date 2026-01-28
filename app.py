@@ -17,8 +17,8 @@ st.set_page_config(
 # CORES
 # ============================================
 COLORS = {
-    'bg': '#0f0f13',
-    'card': '#1a1a22',
+    'bg': '#000000',
+    'card': '#111118',
     'accent': '#dc2626',
     'text': '#ffffff',
     'text_secondary': '#9ca3af',
@@ -37,8 +37,16 @@ st.markdown(f"""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
     
-    .main {{ background: {COLORS['bg']}; font-family: 'Inter', sans-serif; }}
-    [data-testid="stSidebar"] {{ background: #0d0d11; }}
+    /* FORÇAR FUNDO PRETO EM TUDO */
+    .stApp, .main, [data-testid="stAppViewContainer"], [data-testid="stHeader"], 
+    [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"],
+    .block-container, section[data-testid="stSidebar"] > div {{
+        background-color: {COLORS['bg']} !important;
+    }}
+    
+    .main {{ font-family: 'Inter', sans-serif; }}
+    [data-testid="stSidebar"] {{ background: #0a0a0d !important; }}
+    [data-testid="stSidebar"] > div {{ background: #0a0a0d !important; }}
     
     .stTabs [data-baseweb="tab-list"] {{ gap: 0; background: {COLORS['card']}; border-radius: 10px; padding: 4px; }}
     .stTabs [data-baseweb="tab"] {{ background: transparent; color: {COLORS['text_muted']}; font-weight: 500; border-radius: 8px; padding: 8px 16px; }}
@@ -46,31 +54,31 @@ st.markdown(f"""
     
     /* Forçar textos brancos */
     h1, h2, h3, h4, h5, h6 {{ font-family: 'Inter', sans-serif; color: #ffffff !important; }}
-    p {{ font-family: 'Inter', sans-serif; color: {COLORS['text_secondary']}; }}
-    span {{ color: #ffffff; }}
+    p, span, label, div {{ color: #ffffff; }}
     
-    .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {{ color: #ffffff !important; }}
-    .stMarkdown p {{ color: #ffffff !important; }}
+    .stMarkdown h1, .stMarkdown h2, .stMarkdown h3, .stMarkdown p {{ color: #ffffff !important; }}
     [data-testid="stSubheader"] {{ color: #ffffff !important; }}
     
     /* Selectbox e inputs */
-    .stSelectbox label {{ color: #ffffff !important; }}
+    .stSelectbox label, .stRadio label, .stTextInput label {{ color: #ffffff !important; }}
     .stSelectbox div[data-baseweb="select"] {{ background: {COLORS['card']}; }}
-    .stRadio label {{ color: #ffffff !important; }}
-    .stTextInput label {{ color: #ffffff !important; }}
     
     /* Expander */
     .streamlit-expanderHeader {{ color: #ffffff !important; background: {COLORS['card']} !important; }}
     .streamlit-expanderContent {{ background: {COLORS['card']} !important; }}
     
-    /* Dataframe */
-    .stDataFrame {{ background: {COLORS['card']}; }}
+    /* File uploader */
+    [data-testid="stFileUploader"] {{ background: {COLORS['card']}; border-radius: 8px; }}
+    [data-testid="stFileUploader"] label {{ color: #ffffff !important; }}
     
-    /* Links */
-    a {{ color: {COLORS['accent']} !important; }}
+    /* Divider */
+    hr {{ border-color: rgba(255,255,255,0.1) !important; }}
     
     /* Info/Warning boxes */
     .stAlert {{ background: {COLORS['card']} !important; color: #ffffff !important; }}
+    
+    /* Caption */
+    .stCaption, [data-testid="stCaption"] {{ color: {COLORS['text_muted']} !important; }}
     
     #MainMenu {{visibility: hidden;}}
     footer {{visibility: hidden;}}
