@@ -1000,6 +1000,73 @@ def main():
                 })
             
             st.dataframe(pd.DataFrame(comparison_data), use_container_width=True, hide_index=True)
+            
+            # COMPARATIVO FÍSICO SKILLCORNER
+            st.markdown(create_section_title("🏃", "Comparativo Físico (SkillCorner)"), unsafe_allow_html=True)
+            
+            # Buscar jogadores no SkillCorner
+            sc_players_list = skillcorner['player_name'].dropna().unique().tolist()
+            
+            col_sc1, col_sc2 = st.columns(2)
+            with col_sc1:
+                sc1_auto = find_skillcorner_player(j1, skillcorner)
+                sc1_default = sc_players_list.index(sc1_auto['player_name']) if sc1_auto is not None and sc1_auto['player_name'] in sc_players_list else 0
+                sc1_name = st.selectbox(f"SkillCorner: {j1}", sorted(sc_players_list), index=sc1_default, key='sc_cmp1')
+            with col_sc2:
+                sc2_auto = find_skillcorner_player(j2, skillcorner)
+                sc2_default = sc_players_list.index(sc2_auto['player_name']) if sc2_auto is not None and sc2_auto['player_name'] in sc_players_list else 0
+                sc2_name = st.selectbox(f"SkillCorner: {j2}", sorted(sc_players_list), index=sc2_default, key='sc_cmp2')
+            
+            sc1 = skillcorner[skillcorner['player_name'] == sc1_name].iloc[0] if sc1_name else None
+            sc2 = skillcorner[skillcorner['player_name'] == sc2_name].iloc[0] if sc2_name else None
+            
+            if sc1 is not None and sc2 is not None:
+                physical_metrics = {
+                    'Vel. Máx (km/h)': 'avg_psv99_rank',
+                    'Top 5 Vel': 'avg_top_5_psv99_rank',
+                    'Dist. Total /90': 'distance_per_90_rank',
+                    'Dist. Alta Int /90': 'hi_distance_per_90_rank',
+                    'Dist. Sprint /90': 'sprint_distance_per_90_rank',
+                    'Ações Alta Int /90': 'hi_count_per_90_rank',
+                    'm/min (posse)': 'avg_meters_per_minute_tip_rank',
+                    'Acel → HSR /90': 'explacceltohsr_count_per_90_rank',
+                    'Acel → Sprint /90': 'explacceltosprint_count_per_90_rank',
+                }
+                
+                phys1 = {}
+                phys2 = {}
+                for label, rank_col in physical_metrics.items():
+                    if rank_col in sc1.index and rank_col in sc2.index:
+                        r1 = sc1.get(rank_col)
+                        r2 = sc2.get(rank_col)
+                        if pd.notna(r1) and pd.notna(r2):
+                            try:
+                                phys1[label] = float(r1)
+                                phys2[label] = float(r2)
+                            except:
+                                pass
+                
+                if phys1 and phys2:
+                    st.plotly_chart(create_comparison_radar(phys1, phys2, j1, j2), use_container_width=True, config={'displayModeBar': False}, key="radar_phys_cmp")
+                    
+                    # Tabela comparativa física
+                    phys_comparison = []
+                    for label in phys1.keys():
+                        v1, v2 = phys1[label], phys2[label]
+                        diff = v1 - v2
+                        phys_comparison.append({
+                            'Métrica': label,
+                            f'{j1}': f"P{v1:.0f}",
+                            f'{j2}': f"P{v2:.0f}",
+                            'Diferença': f"+{diff:.0f}" if diff > 0 else f"{diff:.0f}",
+                            'Vantagem': '🔴' if diff > 0 else '🔵' if diff < 0 else '='
+                        })
+                    
+                    st.dataframe(pd.DataFrame(phys_comparison), use_container_width=True, hide_index=True)
+                else:
+                    st.warning("⚠️ Dados físicos não disponíveis para comparação")
+            else:
+                st.warning("⚠️ Selecione os jogadores no SkillCorner para comparar dados físicos")
     
     # ===== TAB 5: DADOS =====
     with tab5:
