@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 import numpy as np
 
 # ============================================
-# CONFIGURAÇÃO
+# CONFIG
 # ============================================
 st.set_page_config(
     page_title="Scouting Dashboard | Botafogo-SP",
@@ -31,98 +31,100 @@ COLORS = {
 }
 
 # ============================================
-# CSS LIMPO
+# CSS
 # ============================================
 st.markdown(f"""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
     
-    .main {{
-        background: {COLORS['bg']};
-        font-family: 'Inter', sans-serif;
-    }}
+    .main {{ background: {COLORS['bg']}; font-family: 'Inter', sans-serif; }}
+    [data-testid="stSidebar"] {{ background: #0d0d11; }}
     
-    [data-testid="stSidebar"] {{
-        background: #0d0d11;
-    }}
+    .stTabs [data-baseweb="tab-list"] {{ gap: 0; background: {COLORS['card']}; border-radius: 10px; padding: 4px; }}
+    .stTabs [data-baseweb="tab"] {{ background: transparent; color: {COLORS['text_muted']}; font-weight: 500; border-radius: 8px; padding: 8px 16px; }}
+    .stTabs [aria-selected="true"] {{ background: {COLORS['accent']} !important; color: white !important; }}
     
-    .stTabs [data-baseweb="tab-list"] {{
-        gap: 0;
-        background: {COLORS['card']};
-        border-radius: 10px;
-        padding: 4px;
-    }}
+    [data-testid="stMetric"] {{ background: {COLORS['card']}; border: 1px solid {COLORS['border']}; border-radius: 10px; padding: 16px; }}
+    [data-testid="stMetric"] label {{ color: {COLORS['text_muted']} !important; }}
+    [data-testid="stMetric"] [data-testid="stMetricValue"] {{ color: {COLORS['text']} !important; font-weight: 700 !important; }}
     
-    .stTabs [data-baseweb="tab"] {{
-        background: transparent;
-        color: {COLORS['text_muted']};
-        font-weight: 500;
-        border-radius: 8px;
-        padding: 8px 16px;
-    }}
+    h1, h2, h3 {{ font-family: 'Inter', sans-serif; color: {COLORS['text']} !important; }}
+    p {{ font-family: 'Inter', sans-serif; color: {COLORS['text_secondary']}; }}
     
-    .stTabs [aria-selected="true"] {{
-        background: {COLORS['accent']} !important;
-        color: white !important;
-    }}
-    
-    [data-testid="stMetric"] {{
-        background: {COLORS['card']};
-        border: 1px solid {COLORS['border']};
-        border-radius: 10px;
-        padding: 16px;
-    }}
-    
-    [data-testid="stMetric"] label {{
-        color: {COLORS['text_muted']} !important;
-    }}
-    
-    [data-testid="stMetric"] [data-testid="stMetricValue"] {{
-        color: {COLORS['text']} !important;
-        font-weight: 700 !important;
-    }}
-    
-    h1, h2, h3 {{ 
-        font-family: 'Inter', sans-serif; 
-        color: {COLORS['text']} !important;
-    }}
-    
-    p {{ 
-        font-family: 'Inter', sans-serif;
-        color: {COLORS['text_secondary']};
-    }}
-    
-    .stSubheader {{
-        color: {COLORS['text']} !important;
-    }}
+    .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {{ color: white !important; }}
+    [data-testid="stSubheader"] {{ color: white !important; }}
+    .stSelectbox label, .stRadio label {{ color: {COLORS['text_secondary']} !important; }}
+    .stRadio div[role="radiogroup"] label {{ color: {COLORS['text']} !important; }}
     
     #MainMenu {{visibility: hidden;}}
     footer {{visibility: hidden;}}
-    
-    /* Forçar cor branca nos títulos */
-    .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {{
-        color: white !important;
-    }}
-    
-    [data-testid="stSubheader"] {{
-        color: white !important;
-    }}
-    
-    /* Labels dos selectbox */
-    .stSelectbox label {{
-        color: {COLORS['text_secondary']} !important;
-    }}
-    
-    /* Radio buttons */
-    .stRadio label {{
-        color: {COLORS['text_secondary']} !important;
-    }}
-    
-    .stRadio div[role="radiogroup"] label {{
-        color: {COLORS['text']} !important;
-    }}
 </style>
 """, unsafe_allow_html=True)
+
+# ============================================
+# ÍNDICES POR POSIÇÃO (Wyscout)
+# ============================================
+
+INDICES_CONFIG = {
+    'Atacante': {
+        'Finalização': ['Golos/90', 'Golos esperados/90', 'Remates/90', 'Remates à baliza, %', 'Toques na área/90'],
+        '1x1 Ofensivo': ['Dribles/90', 'Dribles com sucesso, %', 'Duelos ofensivos/90', 'Duelos ofensivos ganhos, %'],
+        'Jogo Aéreo': ['Duelos aérios/90', 'Duelos aéreos ganhos, %', 'Golos de cabeça/90'],
+        'Movimentação': ['Corridas progressivas/90', 'Receção de passes em profundidade/90', 'Acelerações/90'],
+        'Participação': ['Passes recebidos/90', 'Toques na área/90', 'Faltas sofridas/90'],
+    },
+    'Extremo': {
+        'Finalização': ['Golos/90', 'Golos esperados/90', 'Remates/90', 'Toques na área/90'],
+        '1x1 Ofensivo': ['Dribles/90', 'Dribles com sucesso, %', 'Duelos ofensivos/90', 'Duelos ofensivos ganhos, %'],
+        'Criação': ['Assistências/90', 'Assistências esperadas/90', 'Passes chave/90', 'Cruzamentos/90', 'Cruzamentos certos, %'],
+        'Progressão': ['Corridas progressivas/90', 'Passes progressivos/90', 'Acelerações/90'],
+        'Cruzamentos': ['Cruzamentos/90', 'Cruzamentos certos, %', 'Cruzamentos para a área de baliza/90'],
+    },
+    'Meia': {
+        'Criação': ['Assistências/90', 'Assistências esperadas/90', 'Passes chave/90', 'Passes inteligentes/90'],
+        'Progressão': ['Passes progressivos/90', 'Corridas progressivas/90', 'Passes para terço final/90'],
+        'Passe': ['Passes/90', 'Passes certos, %', 'Passes longos/90', 'Passes longos certos, %'],
+        'Finalização': ['Golos/90', 'Golos esperados/90', 'Remates/90'],
+        'Duelos': ['Duelos/90', 'Duelos ganhos, %', 'Duelos defensivos/90'],
+    },
+    'Volante': {
+        'Recuperação': ['Ações defensivas com êxito/90', 'Interseções/90', 'Duelos defensivos/90', 'Duelos defensivos ganhos, %'],
+        'Passe': ['Passes/90', 'Passes certos, %', 'Passes longos/90', 'Passes longos certos, %'],
+        'Progressão': ['Passes progressivos/90', 'Passes para terço final/90', 'Corridas progressivas/90'],
+        'Duelos': ['Duelos/90', 'Duelos ganhos, %', 'Duelos aérios/90', 'Duelos aéreos ganhos, %'],
+        'Disciplina': ['Faltas/90', 'Cartões amarelos/90'],
+    },
+    'Lateral': {
+        'Apoio Ofensivo': ['Cruzamentos/90', 'Cruzamentos certos, %', 'Passes para terço final/90', 'Toques na área/90'],
+        'Progressão': ['Corridas progressivas/90', 'Passes progressivos/90', 'Acelerações/90'],
+        '1x1 Ofensivo': ['Dribles/90', 'Dribles com sucesso, %', 'Duelos ofensivos/90'],
+        'Defesa': ['Duelos defensivos/90', 'Duelos defensivos ganhos, %', 'Interseções/90', 'Cortes/90'],
+        'Duelos': ['Duelos/90', 'Duelos ganhos, %'],
+    },
+    'Zagueiro': {
+        'Duelos Defensivos': ['Duelos defensivos/90', 'Duelos defensivos ganhos, %', 'Cortes/90'],
+        'Jogo Aéreo': ['Duelos aérios/90', 'Duelos aéreos ganhos, %'],
+        'Passe': ['Passes/90', 'Passes certos, %', 'Passes longos/90', 'Passes longos certos, %'],
+        'Progressão': ['Passes progressivos/90', 'Passes para terço final/90'],
+        'Interceções': ['Interseções/90', 'Remates intercetados/90'],
+    },
+    'Goleiro': {
+        'Defesas': ['Defesas, %', 'Golos sofridos/90', 'Remates sofridos/90'],
+        'xG Prevented': ['Golos sofridos esperados/90', 'Golos expectáveis defendidos por 90´'],
+        'Jogo Aéreo': ['Duelos aérios/90.1', 'Saídas/90'],
+        'Jogo com Pés': ['Passes para trás recebidos pelo guarda-redes/90', 'Passes longos certos, %'],
+    },
+}
+
+POSICAO_MAP = {
+    'CF': 'Atacante', 'SS': 'Atacante',
+    'LW': 'Extremo', 'RW': 'Extremo', 'LWF': 'Extremo', 'RWF': 'Extremo', 'LAMF': 'Extremo', 'RAMF': 'Extremo',
+    'AMF': 'Meia', 'LCMF': 'Meia', 'RCMF': 'Meia', 'CMF': 'Meia',
+    'DMF': 'Volante', 'LDMF': 'Volante', 'RDMF': 'Volante',
+    'LB': 'Lateral', 'RB': 'Lateral', 'LWB': 'Lateral', 'RWB': 'Lateral',
+    'CB': 'Zagueiro', 'LCB': 'Zagueiro', 'RCB': 'Zagueiro',
+    'GK': 'Goleiro',
+}
 
 # ============================================
 # FUNÇÕES
@@ -133,16 +135,48 @@ def load_data(uploaded_file=None):
     if uploaded_file:
         xlsx = pd.ExcelFile(uploaded_file)
     else:
-        xlsx = pd.ExcelFile('Banco_de_Dados___Jogadores-2.xlsx')
+        xlsx = pd.ExcelFile('Banco_de_Dados___Jogadores-3.xlsx')
     
     analises = pd.read_excel(xlsx, sheet_name='Análises')
-    central = pd.read_excel(xlsx, sheet_name='Central de Dados')
     oferecidos = pd.read_excel(xlsx, sheet_name='Oferecidos')
-    return analises, central, oferecidos
+    skillcorner = pd.read_excel(xlsx, sheet_name='SkillCorner')
+    wyscout = pd.read_excel(xlsx, sheet_name='WyScout')
+    
+    return analises, oferecidos, skillcorner, wyscout
+
+
+def get_posicao_categoria(posicao_str):
+    if pd.isna(posicao_str):
+        return None
+    for pos in str(posicao_str).replace(' ', '').split(','):
+        if pos in POSICAO_MAP:
+            return POSICAO_MAP[pos]
+    return None
+
+
+def calculate_percentile(value, series):
+    if pd.isna(value):
+        return 50
+    valid = series.dropna()
+    if len(valid) == 0:
+        return 50
+    return (valid < value).sum() / len(valid) * 100
+
+
+def calculate_index(player_row, metrics, df_all):
+    percentiles = []
+    for metric in metrics:
+        if metric in player_row.index and metric in df_all.columns:
+            val = player_row[metric]
+            if pd.notna(val):
+                perc = calculate_percentile(val, df_all[metric])
+                if 'Faltas/90' in metric or 'Cartões' in metric or 'sofridos' in metric.lower():
+                    perc = 100 - perc
+                percentiles.append(perc)
+    return np.mean(percentiles) if percentiles else 50
 
 
 def get_color(value):
-    """Cor baseada no percentil"""
     if value >= 90:
         return COLORS['elite']
     elif value >= 65:
@@ -153,128 +187,128 @@ def get_color(value):
 
 
 def create_wyscout_radar(metrics_dict):
-    """Radar estilo Wyscout com setores coloridos"""
-    
     categories = list(metrics_dict.keys())
     values = list(metrics_dict.values())
     n = len(categories)
     
+    if n == 0:
+        return go.Figure()
+    
     fig = go.Figure()
     
-    # Círculos de fundo
     for r in [25, 50, 75, 100]:
         theta = list(range(0, 361, 1))
         fig.add_trace(go.Scatterpolar(
-            r=[r] * len(theta),
-            theta=theta,
-            mode='lines',
+            r=[r] * len(theta), theta=theta, mode='lines',
             line=dict(color='rgba(255,255,255,0.08)', width=1),
-            showlegend=False,
-            hoverinfo='skip'
+            showlegend=False, hoverinfo='skip'
         ))
     
-    # Linhas radiais
     for i in range(n):
         angle = i * (360 / n)
         fig.add_trace(go.Scatterpolar(
-            r=[0, 105],
-            theta=[angle, angle],
-            mode='lines',
+            r=[0, 105], theta=[angle, angle], mode='lines',
             line=dict(color='rgba(255,255,255,0.08)', width=1),
-            showlegend=False,
-            hoverinfo='skip'
+            showlegend=False, hoverinfo='skip'
         ))
     
-    # Setores coloridos para cada métrica
     for i, (cat, val) in enumerate(zip(categories, values)):
         color = get_color(val)
         angle_center = i * (360 / n)
-        half_width = (360 / n) / 2 - 2  # pequeno gap entre setores
+        half_width = (360 / n) / 2 - 2
         
-        # Criar setor como polígono
         theta_points = np.linspace(angle_center - half_width, angle_center + half_width, 30)
         r_points = [val] * len(theta_points)
         
-        # Fechar o setor (ir até o centro e voltar)
         theta_full = [angle_center] + list(theta_points) + [angle_center]
         r_full = [0] + r_points + [0]
         
         fig.add_trace(go.Scatterpolar(
-            r=r_full,
-            theta=theta_full,
-            fill='toself',
-            fillcolor=color,
-            line=dict(color=color, width=1),
-            opacity=0.85,
-            name=cat,
-            showlegend=False,
+            r=r_full, theta=theta_full, fill='toself',
+            fillcolor=color, line=dict(color=color, width=1),
+            opacity=0.85, showlegend=False,
             hovertemplate=f'<b>{cat}</b><br>{val:.0f}<extra></extra>'
         ))
     
-    # Labels das categorias (fora do gráfico)
     for i, (cat, val) in enumerate(zip(categories, values)):
         angle = i * (360 / n)
-        
         fig.add_trace(go.Scatterpolar(
-            r=[115],
-            theta=[angle],
-            mode='text',
-            text=[cat],
-            textfont=dict(size=11, color=COLORS['text_secondary']),
-            showlegend=False,
-            hoverinfo='skip'
+            r=[118], theta=[angle], mode='text',
+            text=[cat], textfont=dict(size=10, color=COLORS['text_secondary']),
+            showlegend=False, hoverinfo='skip'
         ))
-        
-        # Valor dentro do setor
-        if val > 20:
+        if val > 15:
             fig.add_trace(go.Scatterpolar(
-                r=[val * 0.6],
-                theta=[angle],
-                mode='text',
-                text=[f'{val:.0f}'],
-                textfont=dict(size=11, color='white', weight=600),
-                showlegend=False,
-                hoverinfo='skip'
+                r=[val * 0.55], theta=[angle], mode='text',
+                text=[f'{val:.0f}'], textfont=dict(size=11, color='white', weight=600),
+                showlegend=False, hoverinfo='skip'
             ))
     
     fig.update_layout(
         polar=dict(
-            radialaxis=dict(visible=False, range=[0, 130]),
+            radialaxis=dict(visible=False, range=[0, 135]),
             angularaxis=dict(visible=False, direction='clockwise'),
             bgcolor='rgba(0,0,0,0)'
         ),
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
-        margin=dict(l=60, r=60, t=30, b=30),
-        height=350,
+        margin=dict(l=80, r=80, t=40, b=40),
+        height=380,
         showlegend=False
     )
     
     return fig
 
 
+def create_bar_chart(metrics_dict, title=""):
+    categories = list(metrics_dict.keys())
+    values = list(metrics_dict.values())
+    colors = [get_color(v) for v in values]
+    
+    fig = go.Figure()
+    
+    fig.add_trace(go.Bar(
+        y=categories, x=values, orientation='h',
+        marker=dict(color=colors, line=dict(width=0)),
+        text=[f'{v:.0f}' for v in values],
+        textposition='inside',
+        textfont=dict(color='white', size=12, weight=600),
+        hovertemplate='<b>%{y}</b><br>Percentil: %{x:.0f}<extra></extra>'
+    ))
+    
+    for x in [25, 50, 75]:
+        fig.add_vline(x=x, line_dash="dot", line_color="rgba(255,255,255,0.2)")
+    
+    fig.update_layout(
+        title=dict(text=title, font=dict(size=14, color='white')),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        xaxis=dict(range=[0, 100], gridcolor='rgba(255,255,255,0.05)', tickfont=dict(color=COLORS['text_muted'])),
+        yaxis=dict(tickfont=dict(color=COLORS['text_secondary'], size=11), categoryorder='total ascending'),
+        margin=dict(l=150, r=40, t=50, b=40),
+        height=max(250, len(categories) * 40 + 80)
+    )
+    
+    return fig
+
+
 def create_comparison_radar(p1_data, p2_data, p1_name, p2_name):
-    """Radar de comparação"""
-    
-    categories = ['Técnica', 'Físico', 'Tática', 'Mental']
-    
-    vals1 = [p1_data.get(c, 0) or 0 for c in categories] + [p1_data.get('Técnica', 0) or 0]
-    vals2 = [p2_data.get(c, 0) or 0 for c in categories] + [p2_data.get('Técnica', 0) or 0]
+    categories = list(p1_data.keys())
+    vals1 = list(p1_data.values()) + [list(p1_data.values())[0]]
+    vals2 = list(p2_data.values()) + [list(p2_data.values())[0]]
     theta = categories + [categories[0]]
     
     fig = go.Figure()
     
     fig.add_trace(go.Scatterpolar(
-        r=vals1, theta=theta,
-        fill='toself',
+        r=vals1, theta=theta, fill='toself',
         fillcolor='rgba(220, 38, 38, 0.3)',
         line=dict(color=COLORS['accent'], width=2),
         name=p1_name
     ))
     
     fig.add_trace(go.Scatterpolar(
-        r=vals2, theta=theta,
-        fill='toself',
+        r=vals2, theta=theta, fill='toself',
         fillcolor='rgba(59, 130, 246, 0.3)',
         line=dict(color='#3b82f6', width=2),
         name=p2_name
@@ -282,30 +316,30 @@ def create_comparison_radar(p1_data, p2_data, p1_name, p2_name):
     
     fig.update_layout(
         polar=dict(
-            radialaxis=dict(visible=True, range=[0, 5], gridcolor='rgba(255,255,255,0.1)'),
-            angularaxis=dict(gridcolor='rgba(255,255,255,0.1)'),
+            radialaxis=dict(visible=True, range=[0, 100], gridcolor='rgba(255,255,255,0.1)'),
+            angularaxis=dict(gridcolor='rgba(255,255,255,0.1)', tickfont=dict(color=COLORS['text_secondary'])),
             bgcolor='rgba(0,0,0,0)'
         ),
         paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
         legend=dict(orientation='h', yanchor='bottom', y=1.05, xanchor='center', x=0.5, font=dict(color='white')),
-        margin=dict(l=60, r=60, t=50, b=30),
-        height=400
+        margin=dict(l=80, r=80, t=60, b=40),
+        height=420
     )
     
     return fig
 
 
-def create_scatter_plot(df, x_col, y_col, highlight=None):
-    """Scatter com quadrantes"""
+def create_scatter_plot(df, x_col, y_col, highlight=None, title=""):
+    df_valid = df.dropna(subset=[x_col, y_col])
+    if len(df_valid) == 0:
+        return go.Figure()
     
-    x_mean, y_mean = df[x_col].mean(), df[y_col].mean()
-    x_max, y_max = df[x_col].max() * 1.1, df[y_col].max() * 1.1
-    x_min, y_min = df[x_col].min() * 0.9, df[y_col].min() * 0.9
+    x_mean, y_mean = df_valid[x_col].mean(), df_valid[y_col].mean()
+    x_max, y_max = df_valid[x_col].max() * 1.1, df_valid[y_col].max() * 1.1
+    x_min, y_min = df_valid[x_col].min() * 0.9, df_valid[y_col].min() * 0.9
     
     fig = go.Figure()
     
-    # Quadrantes
     fig.add_shape(type="rect", x0=x_mean, y0=y_mean, x1=x_max, y1=y_max,
                   fillcolor="rgba(34,197,94,0.1)", line=dict(width=0))
     fig.add_shape(type="rect", x0=x_min, y0=y_min, x1=x_mean, y1=y_mean,
@@ -314,39 +348,37 @@ def create_scatter_plot(df, x_col, y_col, highlight=None):
     fig.add_hline(y=y_mean, line_dash="dot", line_color="rgba(255,255,255,0.2)")
     fig.add_vline(x=x_mean, line_dash="dot", line_color="rgba(255,255,255,0.2)")
     
+    name_col = 'Jogador' if 'Jogador' in df_valid.columns else 'player_name'
+    
     fig.add_trace(go.Scatter(
-        x=df[x_col], y=df[y_col],
+        x=df_valid[x_col], y=df_valid[y_col],
         mode='markers',
-        marker=dict(size=10, color=COLORS['text_muted'], opacity=0.5),
-        text=df['Nome'],
-        hovertemplate='<b>%{text}</b><br>%{x:.1f} | %{y:.1f}<extra></extra>',
+        marker=dict(size=8, color=COLORS['text_muted'], opacity=0.4),
+        text=df_valid[name_col],
+        hovertemplate='<b>%{text}</b><br>%{x:.2f} | %{y:.2f}<extra></extra>',
         showlegend=False
     ))
     
-    if highlight and highlight in df['Nome'].values:
-        p = df[df['Nome'] == highlight].iloc[0]
+    if highlight and highlight in df_valid[name_col].values:
+        p = df_valid[df_valid[name_col] == highlight].iloc[0]
         fig.add_trace(go.Scatter(
             x=[p[x_col]], y=[p[y_col]],
             mode='markers+text',
-            marker=dict(size=16, color=COLORS['accent'], line=dict(width=2, color='white')),
+            marker=dict(size=14, color=COLORS['accent'], line=dict(width=2, color='white')),
             text=[highlight.split()[0]],
             textposition='top center',
             textfont=dict(color='white', size=11),
             showlegend=False
         ))
     
-    fig.add_annotation(x=x_max*0.95, y=y_max*0.95, text="COMPLETO", showarrow=False,
-                      font=dict(color=COLORS['elite'], size=11, weight=700))
-    fig.add_annotation(x=x_min*1.02, y=y_min*1.02, text="LIMITADO", showarrow=False,
-                      font=dict(color=COLORS['below'], size=11, weight=700))
-    
     fig.update_layout(
+        title=dict(text=title, font=dict(size=14, color='white')),
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
         xaxis=dict(title=x_col, gridcolor='rgba(255,255,255,0.05)', tickfont=dict(color=COLORS['text_muted'])),
         yaxis=dict(title=y_col, gridcolor='rgba(255,255,255,0.05)', tickfont=dict(color=COLORS['text_muted'])),
-        margin=dict(l=60, r=40, t=40, b=60),
-        height=480
+        margin=dict(l=60, r=40, t=60, b=60),
+        height=420
     )
     
     return fig
@@ -357,7 +389,6 @@ def create_scatter_plot(df, x_col, y_col, highlight=None):
 # ============================================
 
 def main():
-    # SIDEBAR
     with st.sidebar:
         st.markdown("""
         <div style="text-align:center; padding: 20px 0;">
@@ -368,25 +399,23 @@ def main():
         """, unsafe_allow_html=True)
         
         st.divider()
-        
         uploaded = st.file_uploader("📂 Carregar Planilha", type=['xlsx'])
         
         try:
-            analises, central, oferecidos = load_data(uploaded)
+            analises, oferecidos, skillcorner, wyscout = load_data(uploaded)
         except:
             st.error("⚠️ Faça upload do Excel")
             return
         
         st.divider()
-        
         st.caption("FILTROS")
         
         posicoes = ['Todas'] + sorted([str(p) for p in analises['Posição'].dropna().unique()])
         posicao = st.selectbox("Posição", posicoes)
         
         df = analises if posicao == 'Todas' else analises[analises['Posição'] == posicao]
-        
         jogadores = sorted([str(j) for j in df['Nome'].dropna().unique()])
+        
         if not jogadores:
             st.warning("Nenhum jogador")
             return
@@ -394,17 +423,15 @@ def main():
         jogador = st.selectbox("Jogador", jogadores)
         
         st.divider()
-        st.caption(f"📊 {len(analises)} jogadores | 🏃 {len(central)} com dados físicos")
+        st.caption(f"📊 {len(analises)} análises | 📈 {len(wyscout)} Wyscout | 🏃 {len(skillcorner)} SkillCorner")
     
-    # MAIN CONTENT
-    tab1, tab2, tab3, tab4 = st.tabs(["📊 Perfil", "📈 Comparativo", "🏃 Físico", "📋 Dados"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Perfil", "📈 Índices", "📋 Relatório", "🔄 Comparativo", "🗂️ Dados"])
     
     # ===== TAB 1: PERFIL =====
     with tab1:
         if jogador:
             p = df[df['Nome'] == jogador].iloc[0]
             
-            # Header
             col1, col2 = st.columns([3, 1])
             
             with col1:
@@ -413,30 +440,12 @@ def main():
                     <div style="color: {COLORS['accent']}; font-size: 12px; font-weight: 600; letter-spacing: 1px;">{p['Posição'] or 'JOGADOR'}</div>
                     <div style="color: white; font-size: 32px; font-weight: 800; margin: 4px 0;">{p['Nome']}</div>
                     <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 16px;">
-                        <div>
-                            <div style="color: {COLORS['text_muted']}; font-size: 10px; text-transform: uppercase;">Idade</div>
-                            <div style="color: white; font-size: 14px;">{int(p['Idade']) if pd.notna(p['Idade']) else '-'} anos ({int(p['Ano']) if pd.notna(p['Ano']) else '-'})</div>
-                        </div>
-                        <div>
-                            <div style="color: {COLORS['text_muted']}; font-size: 10px; text-transform: uppercase;">Clube</div>
-                            <div style="color: white; font-size: 14px;">{p['Clube'] or '-'}</div>
-                        </div>
-                        <div>
-                            <div style="color: {COLORS['text_muted']}; font-size: 10px; text-transform: uppercase;">Liga</div>
-                            <div style="color: white; font-size: 14px;">{p['Liga'] or '-'}</div>
-                        </div>
-                        <div>
-                            <div style="color: {COLORS['text_muted']}; font-size: 10px; text-transform: uppercase;">Perfil</div>
-                            <div style="color: white; font-size: 14px;">{p['Perfil'] or '-'}</div>
-                        </div>
-                        <div>
-                            <div style="color: {COLORS['text_muted']}; font-size: 10px; text-transform: uppercase;">Contrato</div>
-                            <div style="color: white; font-size: 14px;">{str(p['Contrato']).split(' ')[0] if pd.notna(p['Contrato']) else '-'}</div>
-                        </div>
-                        <div>
-                            <div style="color: {COLORS['text_muted']}; font-size: 10px; text-transform: uppercase;">Agente</div>
-                            <div style="color: white; font-size: 14px;">{p['Agente'] if pd.notna(p.get('Agente')) else '-'}</div>
-                        </div>
+                        <div><div style="color: {COLORS['text_muted']}; font-size: 10px; text-transform: uppercase;">Idade</div><div style="color: white; font-size: 14px;">{int(p['Idade']) if pd.notna(p['Idade']) else '-'} anos</div></div>
+                        <div><div style="color: {COLORS['text_muted']}; font-size: 10px; text-transform: uppercase;">Clube</div><div style="color: white; font-size: 14px;">{p['Clube'] or '-'}</div></div>
+                        <div><div style="color: {COLORS['text_muted']}; font-size: 10px; text-transform: uppercase;">Liga</div><div style="color: white; font-size: 14px;">{p['Liga'] or '-'}</div></div>
+                        <div><div style="color: {COLORS['text_muted']}; font-size: 10px; text-transform: uppercase;">Perfil</div><div style="color: white; font-size: 14px;">{p['Perfil'] or '-'}</div></div>
+                        <div><div style="color: {COLORS['text_muted']}; font-size: 10px; text-transform: uppercase;">Contrato</div><div style="color: white; font-size: 14px;">{str(p['Contrato']).split(' ')[0] if pd.notna(p['Contrato']) else '-'}</div></div>
+                        <div><div style="color: {COLORS['text_muted']}; font-size: 10px; text-transform: uppercase;">Modelo</div><div style="color: white; font-size: 14px;">{p['Modelo'] if pd.notna(p.get('Modelo')) else '-'}</div></div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -444,70 +453,42 @@ def main():
             with col2:
                 if pd.notna(p['Nota_Desempenho']):
                     st.markdown(f"""
-                    <div style="background: linear-gradient(135deg, {COLORS['accent']}, #b91c1c); border-radius: 12px; padding: 20px; text-align: center; height: 100%;">
+                    <div style="background: linear-gradient(135deg, {COLORS['accent']}, #b91c1c); border-radius: 12px; padding: 20px; text-align: center;">
                         <div style="color: rgba(255,255,255,0.7); font-size: 10px; letter-spacing: 1px;">NOTA GERAL</div>
                         <div style="color: white; font-size: 42px; font-weight: 800;">{p['Nota_Desempenho']:.2f}</div>
                     </div>
                     """, unsafe_allow_html=True)
-                
                 if pd.notna(p.get('Link_TM')):
                     st.link_button("🔗 Transfermarkt", p['Link_TM'], use_container_width=True)
             
             st.markdown("<br>", unsafe_allow_html=True)
             
-            # Radars
             col1, col2 = st.columns(2)
-            
             with col1:
-                st.subheader("Atributos")
-                
+                st.subheader("Atributos Qualitativos")
                 attrs = {
                     'Técnica': (p['Técnica'] / 5 * 100) if pd.notna(p['Técnica']) else 50,
                     'Físico': (p['Físico'] / 5 * 100) if pd.notna(p['Físico']) else 50,
                     'Tática': (p['Tática'] / 5 * 100) if pd.notna(p['Tática']) else 50,
                     'Mental': (p['Mental'] / 5 * 100) if pd.notna(p['Mental']) else 50,
                 }
-                
-                fig = create_wyscout_radar(attrs)
-                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+                st.plotly_chart(create_wyscout_radar(attrs), use_container_width=True, config={'displayModeBar': False})
             
             with col2:
-                st.subheader("Percentile Rankings")
-                
-                perc = {
-                    'Técnica': (p['Técnica'] / 5 * 100) if pd.notna(p['Técnica']) else 50,
-                    'Físico': (p['Físico'] / 5 * 100) if pd.notna(p['Físico']) else 50,
-                    'Tática': (p['Tática'] / 5 * 100) if pd.notna(p['Tática']) else 50,
-                    'Mental': (p['Mental'] / 5 * 100) if pd.notna(p['Mental']) else 50,
-                    'Potencial': (p['Potencial'] / 5 * 100) if pd.notna(p.get('Potencial')) else 50,
-                }
-                
-                fig2 = create_wyscout_radar(perc)
-                st.plotly_chart(fig2, use_container_width=True, config={'displayModeBar': False})
+                st.subheader("Potencial")
+                perc = attrs.copy()
+                perc['Potencial'] = (p['Potencial'] / 5 * 100) if pd.notna(p.get('Potencial')) else 50
+                st.plotly_chart(create_wyscout_radar(perc), use_container_width=True, config={'displayModeBar': False})
             
-            # Legenda
             st.markdown(f"""
             <div style="display: flex; justify-content: center; gap: 24px; margin: 10px 0 20px 0;">
-                <div style="display: flex; align-items: center; gap: 6px;">
-                    <div style="width: 12px; height: 12px; background: {COLORS['elite']}; border-radius: 2px;"></div>
-                    <span style="color: {COLORS['text_muted']}; font-size: 11px;">Elite (90+)</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 6px;">
-                    <div style="width: 12px; height: 12px; background: {COLORS['above']}; border-radius: 2px;"></div>
-                    <span style="color: {COLORS['text_muted']}; font-size: 11px;">Acima (65-89)</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 6px;">
-                    <div style="width: 12px; height: 12px; background: {COLORS['average']}; border-radius: 2px;"></div>
-                    <span style="color: {COLORS['text_muted']}; font-size: 11px;">Média (36-64)</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 6px;">
-                    <div style="width: 12px; height: 12px; background: {COLORS['below']}; border-radius: 2px;"></div>
-                    <span style="color: {COLORS['text_muted']}; font-size: 11px;">Abaixo (0-35)</span>
-                </div>
+                <div style="display: flex; align-items: center; gap: 6px;"><div style="width: 12px; height: 12px; background: {COLORS['elite']}; border-radius: 2px;"></div><span style="color: {COLORS['text_muted']}; font-size: 11px;">Elite (90+)</span></div>
+                <div style="display: flex; align-items: center; gap: 6px;"><div style="width: 12px; height: 12px; background: {COLORS['above']}; border-radius: 2px;"></div><span style="color: {COLORS['text_muted']}; font-size: 11px;">Acima (65-89)</span></div>
+                <div style="display: flex; align-items: center; gap: 6px;"><div style="width: 12px; height: 12px; background: {COLORS['average']}; border-radius: 2px;"></div><span style="color: {COLORS['text_muted']}; font-size: 11px;">Média (36-64)</span></div>
+                <div style="display: flex; align-items: center; gap: 6px;"><div style="width: 12px; height: 12px; background: {COLORS['below']}; border-radius: 2px;"></div><span style="color: {COLORS['text_muted']}; font-size: 11px;">Abaixo (0-35)</span></div>
             </div>
             """, unsafe_allow_html=True)
             
-            # Análise
             if pd.notna(p.get('Análise')):
                 st.divider()
                 st.subheader("Análise Qualitativa")
@@ -517,125 +498,228 @@ def main():
                 </div>
                 """, unsafe_allow_html=True)
     
-    # ===== TAB 2: COMPARATIVO =====
+    # ===== TAB 2: ÍNDICES =====
     with tab2:
-        df_plot = df.dropna(subset=['Técnica', 'Físico', 'Tática', 'Mental']).copy()
+        st.subheader("Índices Compostos por Posição")
         
-        if len(df_plot) > 0:
-            df_plot['Finalização'] = (df_plot['Técnica'] + df_plot['Físico']) / 2 * 20
-            df_plot['Criação'] = (df_plot['Tática'] + df_plot['Mental']) / 2 * 20
+        jogadores_ws = sorted(wyscout['Jogador'].dropna().unique().tolist())
+        
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            jogador_ws = st.selectbox("Jogador (Wyscout)", jogadores_ws, key='ws_player')
+        with col2:
+            categoria = st.selectbox("Categoria de Posição", list(INDICES_CONFIG.keys()))
+        
+        if jogador_ws:
+            player_ws = wyscout[wyscout['Jogador'] == jogador_ws].iloc[0]
             
-            st.subheader(f"Perfil: Finalização x Criação ({len(df_plot)} jogadores)")
-            fig = create_scatter_plot(df_plot, 'Finalização', 'Criação', jogador)
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            st.markdown(f"""
+            <div style="background: {COLORS['card']}; border-radius: 12px; padding: 16px; margin: 16px 0; border: 1px solid {COLORS['border']};">
+                <span style="color: {COLORS['accent']}; font-weight: 600;">{player_ws['Posição']}</span> | 
+                <span style="color: white; font-weight: 700; font-size: 18px;">{jogador_ws}</span> | 
+                <span style="color: {COLORS['text_secondary']};">{player_ws['Equipa']} • {int(player_ws['Idade']) if pd.notna(player_ws['Idade']) else '-'} anos • {int(player_ws['Minutos jogados:']) if pd.notna(player_ws['Minutos jogados:']) else 0} min</span>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            indices = INDICES_CONFIG.get(categoria, {})
+            indices_values = {idx_name: calculate_index(player_ws, metrics, wyscout) for idx_name, metrics in indices.items()}
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.plotly_chart(create_wyscout_radar(indices_values), use_container_width=True, config={'displayModeBar': False})
+            with col2:
+                st.plotly_chart(create_bar_chart(indices_values, "Ranking Percentil"), use_container_width=True, config={'displayModeBar': False})
+            
+            st.divider()
+            st.subheader("Detalhamento por Índice")
+            
+            for idx_name, metrics in indices.items():
+                with st.expander(f"📊 {idx_name} — Percentil: {indices_values[idx_name]:.0f}"):
+                    cols = st.columns(min(5, len(metrics)))
+                    for i, m in enumerate(metrics):
+                        if m in player_ws.index:
+                            val = player_ws[m]
+                            perc = calculate_percentile(val, wyscout[m]) if pd.notna(val) else 50
+                            color = get_color(perc)
+                            with cols[i % len(cols)]:
+                                st.markdown(f"""
+                                <div style="background: {COLORS['card']}; border-radius: 8px; padding: 12px; text-align: center; border-left: 3px solid {color}; margin-bottom: 8px;">
+                                    <div style="color: {COLORS['text_muted']}; font-size: 9px; text-transform: uppercase;">{m.replace('/90', '').replace(', %', '%')[:20]}</div>
+                                    <div style="color: white; font-size: 18px; font-weight: 700;">{val:.2f if pd.notna(val) else '-'}</div>
+                                    <div style="color: {color}; font-size: 10px;">P{perc:.0f}</div>
+                                </div>
+                                """, unsafe_allow_html=True)
+    
+    # ===== TAB 3: RELATÓRIO =====
+    with tab3:
+        st.subheader("Gráficos de Relatório")
         
-        st.divider()
+        jogadores_ws = sorted(wyscout['Jogador'].dropna().unique().tolist())
+        jogador_rel = st.selectbox("Jogador", jogadores_ws, key='rel_player')
         
+        if jogador_rel:
+            player_rel = wyscout[wyscout['Jogador'] == jogador_rel].iloc[0]
+            posicao_cat = get_posicao_categoria(player_rel['Posição']) or 'Meia'
+            
+            st.markdown(f"""
+            <div style="background: {COLORS['card']}; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+                <div style="color: {COLORS['accent']}; font-size: 12px; font-weight: 600;">{player_rel['Posição']} • {posicao_cat.upper()}</div>
+                <div style="color: white; font-size: 28px; font-weight: 800;">{jogador_rel}</div>
+                <div style="color: {COLORS['text_secondary']}; margin-top: 8px;">
+                    {player_rel['Equipa']} • {int(player_rel['Idade']) if pd.notna(player_rel['Idade']) else '-'} anos • 
+                    {int(player_rel['Partidas jogadas']) if pd.notna(player_rel['Partidas jogadas']) else 0} jogos • 
+                    {int(player_rel['Minutos jogados:']) if pd.notna(player_rel['Minutos jogados:']) else 0} min
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            indices = INDICES_CONFIG.get(posicao_cat, INDICES_CONFIG['Meia'])
+            indices_values = {idx_name: calculate_index(player_rel, metrics, wyscout) for idx_name, metrics in indices.items()}
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown('<p style="color: white; font-weight: 600; font-size: 16px;">📊 Perfil de Índices</p>', unsafe_allow_html=True)
+                st.plotly_chart(create_wyscout_radar(indices_values), use_container_width=True, config={'displayModeBar': False})
+            with col2:
+                st.markdown('<p style="color: white; font-weight: 600; font-size: 16px;">📈 Rankings</p>', unsafe_allow_html=True)
+                st.plotly_chart(create_bar_chart(indices_values), use_container_width=True, config={'displayModeBar': False})
+            
+            st.divider()
+            st.markdown('<p style="color: white; font-weight: 600; font-size: 16px;">📍 Posicionamento vs Liga</p>', unsafe_allow_html=True)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if posicao_cat in ['Atacante', 'Extremo']:
+                    fig = create_scatter_plot(wyscout, 'Golos esperados/90', 'Assistências esperadas/90', jogador_rel, 'xG vs xA por 90')
+                else:
+                    fig = create_scatter_plot(wyscout, 'Passes progressivos/90', 'Corridas progressivas/90', jogador_rel, 'Passes Prog. vs Corridas Prog.')
+                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            
+            with col2:
+                if posicao_cat in ['Zagueiro', 'Volante']:
+                    fig = create_scatter_plot(wyscout, 'Duelos defensivos/90', 'Duelos defensivos ganhos, %', jogador_rel, 'Volume vs Eficiência Defensiva')
+                else:
+                    fig = create_scatter_plot(wyscout, 'Dribles/90', 'Dribles com sucesso, %', jogador_rel, 'Volume vs Eficiência 1x1')
+                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            
+            # SkillCorner
+            st.divider()
+            st.markdown('<p style="color: white; font-weight: 600; font-size: 16px;">🏃 Índices SkillCorner</p>', unsafe_allow_html=True)
+            
+            sc_match = skillcorner[skillcorner['player_name'].str.contains(jogador_rel.split()[0], case=False, na=False)]
+            
+            if len(sc_match) > 0:
+                sc_player = sc_match.iloc[0]
+                
+                sc_indices_raw = {
+                    'Direct Striker': ('Direct striker index', 'Direct striker index_rank'),
+                    'Link-up Striker': ('Link up striker index', 'Link up striker index_rank'),
+                    'Inverted Winger': ('Inverted winger index', 'Inverted winger index_rank'),
+                    'Wide Winger': ('Wide winger index', 'Wide winger index_rank'),
+                    'Dynamic #8': ('Dynamic number 8 index', 'Dynamic number 8 index_rank'),
+                    'Box-to-Box': ('Box to box midfielder index', 'Box to box midfielder index_rank'),
+                    'Number 6': ('Number 6 index', 'Number 6 index_rank'),
+                    'Intense FB': ('Intense full back index', 'Intense full back index_rank'),
+                    'Technical FB': ('Technical full back index', 'Technical full back index_rank'),
+                    'Aggressive CB': ('Physical & aggressive defender index', 'Physical & aggressive defender index_rank'),
+                    'Ball-Playing CB': ('Ball playing central defender index', 'Ball playing central defender index_rank'),
+                }
+                
+                sc_perc = {}
+                for label, (val_col, rank_col) in sc_indices_raw.items():
+                    if val_col in sc_player.index:
+                        rank = sc_player.get(rank_col)
+                        if pd.notna(rank):
+                            sc_perc[label] = 100 - rank
+                
+                if sc_perc:
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.plotly_chart(create_wyscout_radar(sc_perc), use_container_width=True, config={'displayModeBar': False})
+                    with col2:
+                        st.plotly_chart(create_bar_chart(sc_perc, "Índices de Estilo"), use_container_width=True, config={'displayModeBar': False})
+                else:
+                    st.info("Índices SkillCorner não disponíveis para este jogador")
+            else:
+                st.info("Jogador não encontrado na base SkillCorner")
+    
+    # ===== TAB 4: COMPARATIVO =====
+    with tab4:
         st.subheader("Comparar Jogadores")
         
-        c1, c2 = st.columns(2)
-        with c1:
-            j1 = st.selectbox("Jogador 1", jogadores, key='c1')
-        with c2:
-            j2 = st.selectbox("Jogador 2", jogadores, index=min(1, len(jogadores)-1), key='c2')
+        jogadores_ws = sorted(wyscout['Jogador'].dropna().unique().tolist())
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            j1 = st.selectbox("Jogador 1", jogadores_ws, key='cmp1')
+        with col2:
+            j2 = st.selectbox("Jogador 2", jogadores_ws, index=min(1, len(jogadores_ws)-1), key='cmp2')
+        
+        categoria_cmp = st.selectbox("Categoria para comparação", list(INDICES_CONFIG.keys()), key='cat_cmp')
         
         if j1 and j2 and j1 != j2:
-            p1 = df[df['Nome'] == j1].iloc[0]
-            p2 = df[df['Nome'] == j2].iloc[0]
+            p1 = wyscout[wyscout['Jogador'] == j1].iloc[0]
+            p2 = wyscout[wyscout['Jogador'] == j2].iloc[0]
             
-            d1 = {c: p1[c] for c in ['Técnica', 'Físico', 'Tática', 'Mental']}
-            d2 = {c: p2[c] for c in ['Técnica', 'Físico', 'Tática', 'Mental']}
+            indices = INDICES_CONFIG.get(categoria_cmp, {})
+            idx1 = {n: calculate_index(p1, m, wyscout) for n, m in indices.items()}
+            idx2 = {n: calculate_index(p2, m, wyscout) for n, m in indices.items()}
             
-            fig = create_comparison_radar(d1, d2, j1, j2)
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown(f"""
+                <div style="background: rgba(220,38,38,0.2); border: 1px solid {COLORS['accent']}; border-radius: 12px; padding: 16px;">
+                    <div style="color: {COLORS['accent']}; font-weight: 600;">{p1['Posição']}</div>
+                    <div style="color: white; font-size: 20px; font-weight: 700;">{j1}</div>
+                    <div style="color: {COLORS['text_secondary']};">{p1['Equipa']} • {int(p1['Idade']) if pd.notna(p1['Idade']) else '-'} anos</div>
+                </div>
+                """, unsafe_allow_html=True)
+            with col2:
+                st.markdown(f"""
+                <div style="background: rgba(59,130,246,0.2); border: 1px solid #3b82f6; border-radius: 12px; padding: 16px;">
+                    <div style="color: #3b82f6; font-weight: 600;">{p2['Posição']}</div>
+                    <div style="color: white; font-size: 20px; font-weight: 700;">{j2}</div>
+                    <div style="color: {COLORS['text_secondary']};">{p2['Equipa']} • {int(p2['Idade']) if pd.notna(p2['Idade']) else '-'} anos</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.plotly_chart(create_comparison_radar(idx1, idx2, j1, j2), use_container_width=True, config={'displayModeBar': False})
+            
+            st.divider()
+            st.subheader("Tabela Comparativa")
+            
+            comparison_data = []
+            for idx_name in indices.keys():
+                v1, v2 = idx1[idx_name], idx2[idx_name]
+                diff = v1 - v2
+                comparison_data.append({
+                    'Índice': idx_name,
+                    j1: f"{v1:.0f}",
+                    j2: f"{v2:.0f}",
+                    'Diferença': f"+{diff:.0f}" if diff > 0 else f"{diff:.0f}",
+                    'Vantagem': '🔴' if diff > 0 else '🔵' if diff < 0 else '='
+                })
+            
+            st.dataframe(pd.DataFrame(comparison_data), use_container_width=True, hide_index=True)
     
-    # ===== TAB 3: FÍSICO =====
-    with tab3:
-        if len(central) > 0:
-            jf_list = sorted([str(j) for j in central['Nome'].dropna().unique()])
-            jf = st.selectbox("Jogador", jf_list, key='phys')
-            
-            if jf:
-                pf = central[central['Nome'] == jf].iloc[0]
-                
-                c1, c2, c3, c4 = st.columns(4)
-                c1.metric("Distância/90", f"{pf['distance_per_90']:.0f}m" if pd.notna(pf['distance_per_90']) else "N/A")
-                c2.metric("Sprints/90", f"{pf['sprint_count_per_90']:.1f}" if pd.notna(pf['sprint_count_per_90']) else "N/A")
-                c3.metric("HI Dist/90", f"{pf['hi_distance_per_90']:.0f}m" if pd.notna(pf['hi_distance_per_90']) else "N/A")
-                c4.metric("Top Speed", f"{pf['avg_psv99']:.1f} km/h" if pd.notna(pf['avg_psv99']) else "N/A")
-                
-                st.divider()
-                
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.subheader("Rankings Físicos")
-                    
-                    def safe_rank(v):
-                        return max(0, min(100, 100 - v)) if pd.notna(v) else 50
-                    
-                    phys_metrics = {
-                        'Distância': safe_rank(pf.get('distance_per_90_rank')),
-                        'Sprints': safe_rank(pf.get('sprint_count_per_90_rank')),
-                        'HI Runs': safe_rank(pf.get('hi_count_per_90_rank')),
-                        'Velocidade': safe_rank(pf.get('avg_psv99_rank')),
-                        'Acelerações': safe_rank(pf.get('explacceltosprint_count_per_90_rank')),
-                    }
-                    
-                    fig = create_wyscout_radar(phys_metrics)
-                    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-                
-                with col2:
-                    st.subheader("Velocidade x Volume")
-                    
-                    df_phys = central.dropna(subset=['avg_psv99', 'distance_per_90'])
-                    
-                    fig = go.Figure()
-                    fig.add_trace(go.Scatter(
-                        x=df_phys['avg_psv99'], y=df_phys['distance_per_90'],
-                        mode='markers',
-                        marker=dict(size=10, color=COLORS['text_muted'], opacity=0.4),
-                        text=df_phys['Nome'],
-                        hovertemplate='<b>%{text}</b><br>%{x:.1f} km/h | %{y:.0f}m<extra></extra>',
-                        showlegend=False
-                    ))
-                    
-                    if jf in df_phys['Nome'].values:
-                        pr = df_phys[df_phys['Nome'] == jf].iloc[0]
-                        fig.add_trace(go.Scatter(
-                            x=[pr['avg_psv99']], y=[pr['distance_per_90']],
-                            mode='markers+text',
-                            marker=dict(size=16, color=COLORS['accent'], line=dict(width=2, color='white')),
-                            text=[jf.split()[0]],
-                            textposition='top center',
-                            textfont=dict(color='white', size=11),
-                            showlegend=False
-                        ))
-                    
-                    fig.update_layout(
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        xaxis=dict(title='Velocidade (km/h)', gridcolor='rgba(255,255,255,0.05)'),
-                        yaxis=dict(title='Distância/90 (m)', gridcolor='rgba(255,255,255,0.05)'),
-                        margin=dict(l=60, r=40, t=20, b=60),
-                        height=350
-                    )
-                    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-        else:
-            st.info("Sem dados físicos")
-    
-    # ===== TAB 4: DADOS =====
-    with tab4:
-        source = st.radio("", ['Análises', 'Dados Físicos', 'Oferecidos'], horizontal=True)
+    # ===== TAB 5: DADOS =====
+    with tab5:
+        source = st.radio("Fonte de Dados", ['Análises', 'WyScout', 'SkillCorner', 'Oferecidos'], horizontal=True)
         
         if source == 'Análises':
-            cols = ['Nome', 'Posição', 'Idade', 'Clube', 'Liga', 'Perfil', 'Nota_Desempenho']
-            df_show = df[[c for c in cols if c in df.columns]]
-        elif source == 'Dados Físicos':
-            cols = ['Nome', 'Clube', 'Posição', 'distance_per_90', 'sprint_count_per_90', 'avg_psv99']
-            df_show = central[[c for c in cols if c in central.columns]]
+            df_show = analises[['Nome', 'Posição', 'Idade', 'Clube', 'Liga', 'Perfil', 'Nota_Desempenho']]
+        elif source == 'WyScout':
+            df_show = wyscout[['Jogador', 'Equipa', 'Posição', 'Idade', 'Partidas jogadas', 'Minutos jogados:', 'Golos', 'Assistências', 'Golos esperados/90', 'Assistências esperadas/90']]
+        elif source == 'SkillCorner':
+            df_show = skillcorner[['player_name', 'team_name', 'position_group', 'age', 'count_match', 'distance_per_90', 'sprint_count_per_90', 'avg_psv99']]
         else:
             df_show = oferecidos
+        
+        search = st.text_input("🔍 Buscar jogador")
+        if search:
+            name_col = 'Jogador' if 'Jogador' in df_show.columns else 'player_name' if 'player_name' in df_show.columns else 'Nome'
+            df_show = df_show[df_show[name_col].str.contains(search, case=False, na=False)]
         
         st.dataframe(df_show, use_container_width=True, height=500)
         st.download_button("📥 Exportar CSV", df_show.to_csv(index=False).encode('utf-8'), f"{source.lower()}.csv")
