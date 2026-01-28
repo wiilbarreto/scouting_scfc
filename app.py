@@ -62,7 +62,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ============================================
-# ÍNDICES POR POSIÇÃO (Wyscout)
+# ÍNDICES POR POSIÇÃO
 # ============================================
 
 INDICES_CONFIG = {
@@ -186,7 +186,7 @@ def get_color(value):
     return COLORS['below']
 
 
-def create_wyscout_radar(metrics_dict):
+def create_wyscout_radar(metrics_dict, chart_id=""):
     categories = list(metrics_dict.keys())
     values = list(metrics_dict.values())
     n = len(categories)
@@ -472,13 +472,13 @@ def main():
                     'Tática': (p['Tática'] / 5 * 100) if pd.notna(p['Tática']) else 50,
                     'Mental': (p['Mental'] / 5 * 100) if pd.notna(p['Mental']) else 50,
                 }
-                st.plotly_chart(create_wyscout_radar(attrs), use_container_width=True, config={'displayModeBar': False})
+                st.plotly_chart(create_wyscout_radar(attrs), use_container_width=True, config={'displayModeBar': False}, key="radar_attrs")
             
             with col2:
                 st.subheader("Potencial")
                 perc = attrs.copy()
                 perc['Potencial'] = (p['Potencial'] / 5 * 100) if pd.notna(p.get('Potencial')) else 50
-                st.plotly_chart(create_wyscout_radar(perc), use_container_width=True, config={'displayModeBar': False})
+                st.plotly_chart(create_wyscout_radar(perc), use_container_width=True, config={'displayModeBar': False}, key="radar_potencial")
             
             st.markdown(f"""
             <div style="display: flex; justify-content: center; gap: 24px; margin: 10px 0 20px 0;">
@@ -526,9 +526,9 @@ def main():
             
             col1, col2 = st.columns(2)
             with col1:
-                st.plotly_chart(create_wyscout_radar(indices_values), use_container_width=True, config={'displayModeBar': False})
+                st.plotly_chart(create_wyscout_radar(indices_values), use_container_width=True, config={'displayModeBar': False}, key="radar_indices")
             with col2:
-                st.plotly_chart(create_bar_chart(indices_values, "Ranking Percentil"), use_container_width=True, config={'displayModeBar': False})
+                st.plotly_chart(create_bar_chart(indices_values, "Ranking Percentil"), use_container_width=True, config={'displayModeBar': False}, key="bar_indices")
             
             st.divider()
             st.subheader("Detalhamento por Índice")
@@ -580,10 +580,10 @@ def main():
             col1, col2 = st.columns(2)
             with col1:
                 st.markdown('<p style="color: white; font-weight: 600; font-size: 16px;">📊 Perfil de Índices</p>', unsafe_allow_html=True)
-                st.plotly_chart(create_wyscout_radar(indices_values), use_container_width=True, config={'displayModeBar': False})
+                st.plotly_chart(create_wyscout_radar(indices_values), use_container_width=True, config={'displayModeBar': False}, key="radar_rel")
             with col2:
                 st.markdown('<p style="color: white; font-weight: 600; font-size: 16px;">📈 Rankings</p>', unsafe_allow_html=True)
-                st.plotly_chart(create_bar_chart(indices_values), use_container_width=True, config={'displayModeBar': False})
+                st.plotly_chart(create_bar_chart(indices_values), use_container_width=True, config={'displayModeBar': False}, key="bar_rel")
             
             st.divider()
             st.markdown('<p style="color: white; font-weight: 600; font-size: 16px;">📍 Posicionamento vs Liga</p>', unsafe_allow_html=True)
@@ -594,14 +594,14 @@ def main():
                     fig = create_scatter_plot(wyscout, 'Golos esperados/90', 'Assistências esperadas/90', jogador_rel, 'xG vs xA por 90')
                 else:
                     fig = create_scatter_plot(wyscout, 'Passes progressivos/90', 'Corridas progressivas/90', jogador_rel, 'Passes Prog. vs Corridas Prog.')
-                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False}, key="scatter1")
             
             with col2:
                 if posicao_cat in ['Zagueiro', 'Volante']:
                     fig = create_scatter_plot(wyscout, 'Duelos defensivos/90', 'Duelos defensivos ganhos, %', jogador_rel, 'Volume vs Eficiência Defensiva')
                 else:
                     fig = create_scatter_plot(wyscout, 'Dribles/90', 'Dribles com sucesso, %', jogador_rel, 'Volume vs Eficiência 1x1')
-                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False}, key="scatter2")
             
             # SkillCorner
             st.divider()
@@ -636,9 +636,9 @@ def main():
                 if sc_perc:
                     col1, col2 = st.columns(2)
                     with col1:
-                        st.plotly_chart(create_wyscout_radar(sc_perc), use_container_width=True, config={'displayModeBar': False})
+                        st.plotly_chart(create_wyscout_radar(sc_perc), use_container_width=True, config={'displayModeBar': False}, key="radar_sc")
                     with col2:
-                        st.plotly_chart(create_bar_chart(sc_perc, "Índices de Estilo"), use_container_width=True, config={'displayModeBar': False})
+                        st.plotly_chart(create_bar_chart(sc_perc, "Índices de Estilo"), use_container_width=True, config={'displayModeBar': False}, key="bar_sc")
                 else:
                     st.info("Índices SkillCorner não disponíveis para este jogador")
             else:
@@ -685,7 +685,7 @@ def main():
                 """, unsafe_allow_html=True)
             
             st.markdown("<br>", unsafe_allow_html=True)
-            st.plotly_chart(create_comparison_radar(idx1, idx2, j1, j2), use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(create_comparison_radar(idx1, idx2, j1, j2), use_container_width=True, config={'displayModeBar': False}, key="radar_cmp")
             
             st.divider()
             st.subheader("Tabela Comparativa")
@@ -706,7 +706,7 @@ def main():
     
     # ===== TAB 5: DADOS =====
     with tab5:
-        source = st.radio("Fonte de Dados", ['Análises', 'WyScout', 'SkillCorner', 'Oferecidos'], horizontal=True)
+        source = st.radio("Fonte de Dados", ['Análises', 'WyScout', 'SkillCorner', 'Oferecidos'], horizontal=True, key='data_source')
         
         if source == 'Análises':
             df_show = analises[['Nome', 'Posição', 'Idade', 'Clube', 'Liga', 'Perfil', 'Nota_Desempenho']]
@@ -717,13 +717,13 @@ def main():
         else:
             df_show = oferecidos
         
-        search = st.text_input("🔍 Buscar jogador")
+        search = st.text_input("🔍 Buscar jogador", key='search_data')
         if search:
             name_col = 'Jogador' if 'Jogador' in df_show.columns else 'player_name' if 'player_name' in df_show.columns else 'Nome'
             df_show = df_show[df_show[name_col].str.contains(search, case=False, na=False)]
         
         st.dataframe(df_show, use_container_width=True, height=500)
-        st.download_button("📥 Exportar CSV", df_show.to_csv(index=False).encode('utf-8'), f"{source.lower()}.csv")
+        st.download_button("📥 Exportar CSV", df_show.to_csv(index=False).encode('utf-8'), f"{source.lower()}.csv", key='download_csv')
 
 
 if __name__ == "__main__":
