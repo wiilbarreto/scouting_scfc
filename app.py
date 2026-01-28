@@ -170,6 +170,14 @@ POSICAO_MAP = {
     'GK': 'Goleiro',
 }
 
+# Times da Série B 2025
+SERIE_B_TEAMS = [
+    'Amazonas', 'América Mineiro', 'Avaí', 'Botafogo SP', 'Botafogo SP B',
+    'Chapecoense', 'CRB', 'Coritiba', 'Coritiba SE', 'Goiás', 
+    'Grêmio Novorizontino', 'Novorizontino', 'Operário', 'Operário PR', 
+    'Paysandu', 'Ponte Preta', 'Remo', 'Vila Nova', 'Vila Nova GO', 'Volta Redonda'
+]
+
 # ============================================
 # FUNÇÕES
 # ============================================
@@ -758,28 +766,61 @@ def main():
                 st.markdown(create_section_title("📈", "Rankings"), unsafe_allow_html=True)
                 st.plotly_chart(create_bar_chart(indices_values), use_container_width=True, config={'displayModeBar': False}, key="bar_rel")
             
-            st.markdown(create_section_title("📍", "Posicionamento vs Liga"), unsafe_allow_html=True)
+            st.markdown(create_section_title("📍", "Posicionamento vs Série B 2025"), unsafe_allow_html=True)
+            
+            # Filtrar apenas jogadores da Série B
+            wyscout_serie_b = wyscout[wyscout['Equipa'].isin(SERIE_B_TEAMS)]
+            st.caption(f"Comparando com {len(wyscout_serie_b)} jogadores da Série B 2025")
             
             col1, col2 = st.columns(2)
             with col1:
                 if posicao_rel in ['Atacante', 'Extremo']:
-                    fig = create_scatter_plot(wyscout, 'Golos esperados/90', 'Assistências esperadas/90', jogador_rel, 'xG vs xA por 90')
+                    fig = create_scatter_plot(wyscout_serie_b, 'Golos esperados/90', 'Assistências esperadas/90', jogador_rel, 'xG vs xA por 90 (Série B)')
                 else:
-                    fig = create_scatter_plot(wyscout, 'Passes progressivos/90', 'Corridas progressivas/90', jogador_rel, 'Passes Prog. vs Corridas Prog.')
+                    fig = create_scatter_plot(wyscout_serie_b, 'Passes progressivos/90', 'Corridas progressivas/90', jogador_rel, 'Passes Prog. vs Corridas Prog. (Série B)')
                 st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False}, key="scatter1")
             
             with col2:
                 if posicao_rel in ['Zagueiro', 'Volante']:
-                    fig = create_scatter_plot(wyscout, 'Duelos defensivos/90', 'Duelos defensivos ganhos, %', jogador_rel, 'Volume vs Eficiência Defensiva')
+                    fig = create_scatter_plot(wyscout_serie_b, 'Duelos defensivos/90', 'Duelos defensivos ganhos, %', jogador_rel, 'Volume vs Eficiência Defensiva (Série B)')
                 else:
-                    fig = create_scatter_plot(wyscout, 'Dribles/90', 'Dribles com sucesso, %', jogador_rel, 'Volume vs Eficiência 1x1')
+                    fig = create_scatter_plot(wyscout_serie_b, 'Dribles/90', 'Dribles com sucesso, %', jogador_rel, 'Volume vs Eficiência 1x1 (Série B)')
                 st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False}, key="scatter2")
             
             # SkillCorner - DADOS FÍSICOS
             st.markdown(create_section_title("🏃", "Dados Físicos SkillCorner"), unsafe_allow_html=True)
             
-            # BUSCA MELHORADA
-            sc_player = find_skillcorner_player(jogador_rel, skillcorner)
+            # Criar lista de jogadores SkillCorner para seleção
+            sc_players_list = skillcorner['player_name'].dropna().unique().tolist()
+            sc_players_list = sorted(sc_players_list)
+            
+            # Tentar match automático para sugerir
+            sc_auto_match = find_skillcorner_player(jogador_rel, skillcorner)
+            default_idx = 0
+            if sc_auto_match is not None:
+                try:
+                    default_idx = sc_players_list.index(sc_auto_match['player_name'])
+                except ValueError:
+                    default_idx = 0
+            
+            # Selectbox para seleção manual
+            col_sc1, col_sc2 = st.columns([3, 1])
+            with col_sc1:
+                sc_selected_name = st.selectbox(
+                    "Selecionar Jogador SkillCorner",
+                    sc_players_list,
+                    index=default_idx,
+                    key='sc_player_select',
+                    help="Match automático sugerido. Selecione outro se estiver incorreto."
+                )
+            with col_sc2:
+                if sc_auto_match is not None and sc_selected_name == sc_auto_match['player_name']:
+                    st.markdown(f"<br><span style='color: {COLORS['elite']}; font-size: 12px;'>✓ Match automático</span>", unsafe_allow_html=True)
+                else:
+                    st.markdown(f"<br><span style='color: {COLORS['above']}; font-size: 12px;'>✎ Seleção manual</span>", unsafe_allow_html=True)
+            
+            # Buscar jogador selecionado
+            sc_player = skillcorner[skillcorner['player_name'] == sc_selected_name].iloc[0] if sc_selected_name else None
             
             if sc_player is not None:
                 count_match = sc_player.get('count_match', 0)
@@ -792,9 +833,8 @@ def main():
                     min_per_match = 0
                 
                 st.markdown(f"""
-                <div style="background: {COLORS['card']}; border-radius: 8px; padding: 14px; margin-bottom: 20px; border: 1px solid {COLORS['elite']};">
-                    <span style="color: {COLORS['elite']}; font-size: 13px; font-weight: 600;">✓ Match SkillCorner:</span>
-                    <span style="color: white; font-weight: 700; font-size: 15px;"> {sc_player['player_name']}</span>
+                <div style="background: {COLORS['card']}; border-radius: 8px; padding: 14px; margin-bottom: 20px; border: 1px solid {COLORS['border']};">
+                    <span style="color: white; font-weight: 700; font-size: 15px;">{sc_player['player_name']}</span>
                     <span style="color: {COLORS['text_secondary']};"> • {sc_player['team_name']}</span>
                     <span style="color: {COLORS['text_muted']}; font-size: 12px;"> • {count_match} jogos • {min_per_match:.0f} min/jogo</span>
                 </div>
@@ -901,9 +941,6 @@ def main():
                         st.plotly_chart(create_bar_chart(sc_style_perc, "Índices de Estilo"), use_container_width=True, config={'displayModeBar': False}, key="bar_sc_style")
                 else:
                     st.info("ℹ️ Índices de estilo de jogo não disponíveis para este jogador (apenas 435 de 3.298 jogadores têm)")
-            
-            else:
-                st.warning(f"⚠️ Jogador '{jogador_rel}' não encontrado na base SkillCorner")
     
     # ===== TAB 4: COMPARATIVO =====
     with tab4:
