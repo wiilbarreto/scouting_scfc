@@ -541,11 +541,12 @@ def main():
                             val = player_ws[m]
                             perc = calculate_percentile(val, wyscout[m]) if pd.notna(val) else 50
                             color = get_color(perc)
+                            val_fmt = f"{val:.2f}" if pd.notna(val) else "-"
                             with cols[i % len(cols)]:
                                 st.markdown(f"""
                                 <div style="background: {COLORS['card']}; border-radius: 8px; padding: 12px; text-align: center; border-left: 3px solid {color}; margin-bottom: 8px;">
                                     <div style="color: {COLORS['text_muted']}; font-size: 9px; text-transform: uppercase;">{m.replace('/90', '').replace(', %', '%')[:20]}</div>
-                                    <div style="color: white; font-size: 18px; font-weight: 700;">{val:.2f if pd.notna(val) else '-'}</div>
+                                    <div style="color: white; font-size: 18px; font-weight: 700;">{val_fmt}</div>
                                     <div style="color: {color}; font-size: 10px;">P{perc:.0f}</div>
                                 </div>
                                 """, unsafe_allow_html=True)
