@@ -743,48 +743,65 @@ def main():
             sc_player = find_skillcorner_player(jogador_rel, skillcorner)
             
             if sc_player is not None:
+                count_match = sc_player.get('count_match', 0)
+                min_per_match = sc_player.get('minutes_per_match', 0)
+                try:
+                    count_match = int(float(count_match)) if pd.notna(count_match) else 0
+                    min_per_match = float(min_per_match) if pd.notna(min_per_match) else 0
+                except:
+                    count_match = 0
+                    min_per_match = 0
+                
                 st.markdown(f"""
                 <div style="background: {COLORS['card']}; border-radius: 8px; padding: 14px; margin-bottom: 20px; border: 1px solid {COLORS['elite']};">
                     <span style="color: {COLORS['elite']}; font-size: 13px; font-weight: 600;">✓ Match SkillCorner:</span>
                     <span style="color: white; font-weight: 700; font-size: 15px;"> {sc_player['player_name']}</span>
                     <span style="color: {COLORS['text_secondary']};"> • {sc_player['team_name']}</span>
-                    <span style="color: {COLORS['text_muted']}; font-size: 12px;"> • {int(sc_player['count_match'])} jogos • {sc_player['minutes_per_match']:.0f} min/jogo</span>
+                    <span style="color: {COLORS['text_muted']}; font-size: 12px;"> • {count_match} jogos • {min_per_match:.0f} min/jogo</span>
                 </div>
                 """, unsafe_allow_html=True)
                 
                 # DADOS FÍSICOS - Todos os jogadores têm
+                # O _rank JÁ É o percentil (100 = melhor, 0 = pior)
+                # NOTA: sprint_count_per_90 removido pois está corrompido no Excel (parseado como datetime)
                 physical_metrics = {
-                    'Velocidade': {
-                        'Vel. Máx (km/h)': ('avg_psv99', 'avg_psv99_rank'),
-                        'Top 5 Vel (km/h)': ('avg_top_5_psv99', 'avg_top_5_psv99_rank'),
-                    },
-                    'Distância': {
-                        'Dist. Total /90': ('distance_per_90', 'distance_per_90_rank'),
-                        'Dist. Alta Int /90': ('hi_distance_per_90', 'hi_distance_per_90_rank'),
-                        'Dist. Sprint /90': ('sprint_distance_per_90', 'sprint_distance_per_90_rank'),
-                    },
-                    'Intensidade': {
-                        'Ações Alta Int /90': ('hi_count_per_90', 'hi_count_per_90_rank'),
-                        'Sprints /90': ('sprint_count_per_90', 'sprint_count_per_90_rank'),
-                        'm/min (posse)': ('avg_meters_per_minute_tip', 'avg_meters_per_minute_tip_rank'),
-                    },
-                    'Explosão': {
-                        'Acel → HSR /90': ('explacceltohsr_count_per_90', 'explacceltohsr_count_per_90_rank'),
-                        'Acel → Sprint /90': ('explacceltosprint_count_per_90', 'explacceltosprint_count_per_90_rank'),
-                    },
+                    'Vel. Máx (km/h)': ('avg_psv99', 'avg_psv99_rank'),
+                    'Top 5 Vel (km/h)': ('avg_top_5_psv99', 'avg_top_5_psv99_rank'),
+                    'Dist. Total /90': ('distance_per_90', 'distance_per_90_rank'),
+                    'Dist. Alta Int /90': ('hi_distance_per_90', 'hi_distance_per_90_rank'),
+                    'Dist. Sprint /90': ('sprint_distance_per_90', 'sprint_distance_per_90_rank'),
+                    'Ações Alta Int /90': ('hi_count_per_90', 'hi_count_per_90_rank'),
+                    'm/min (posse)': ('avg_meters_per_minute_tip', 'avg_meters_per_minute_tip_rank'),
+                    'Acel → HSR /90': ('explacceltohsr_count_per_90', 'explacceltohsr_count_per_90_rank'),
+                    'Acel → Sprint /90': ('explacceltosprint_count_per_90', 'explacceltosprint_count_per_90_rank'),
                 }
                 
-                # Calcular percentis físicos
+                # Calcular percentis físicos (rank JÁ É o percentil)
                 physical_perc = {}
                 physical_vals = {}
-                for category, metrics in physical_metrics.items():
-                    for label, (val_col, rank_col) in metrics.items():
-                        if val_col in sc_player.index:
+                for label, (val_col, rank_col) in physical_metrics.items():
+                    try:
+                        if val_col in sc_player.index and rank_col in sc_player.index:
                             val = sc_player.get(val_col)
                             rank = sc_player.get(rank_col)
-                            if pd.notna(val) and pd.notna(rank):
-                                physical_perc[label] = 100 - rank
-                                physical_vals[label] = val
+                            
+                            # Converter valor para float (pode estar como string)
+                            val_float = None
+                            if pd.notna(val):
+                                # Verificar se não é datetime
+                                if hasattr(val, 'year'):  # É datetime
+                                    continue
+                                try:
+                                    val_float = float(str(val).replace(',', '.'))
+                                except:
+                                    continue
+                            
+                            # Rank já é o percentil
+                            if pd.notna(rank) and val_float is not None:
+                                physical_perc[label] = float(rank)
+                                physical_vals[label] = val_float
+                    except Exception as e:
+                        continue  # Pular métricas com erro
                 
                 if physical_perc:
                     col1, col2 = st.columns(2)
@@ -807,6 +824,8 @@ def main():
                                 <div style="color: {color}; font-size: 10px;">P{perc:.0f}</div>
                             </div>
                             """, unsafe_allow_html=True)
+                else:
+                    st.warning("⚠️ Dados físicos não disponíveis para este jogador")
                 
                 # ÍNDICES DE ESTILO (só para os 435 que têm)
                 sc_indices_raw = {
@@ -828,7 +847,11 @@ def main():
                     if val_col in sc_player.index:
                         rank = sc_player.get(rank_col)
                         if pd.notna(rank):
-                            sc_style_perc[label] = 100 - rank
+                            # rank JÁ É o percentil (rank 100 = melhor)
+                            try:
+                                sc_style_perc[label] = float(rank)
+                            except:
+                                pass
                 
                 if sc_style_perc:
                     st.markdown(create_section_title("🎯", "Índices de Estilo de Jogo"), unsafe_allow_html=True)
