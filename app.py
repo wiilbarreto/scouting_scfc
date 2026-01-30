@@ -945,12 +945,16 @@ def main():
             
             with col2:
                 if pd.notna(p['Nota_Desempenho']):
-                    st.markdown(f"""
-                    <div style="background: linear-gradient(135deg, {COLORS['accent']}, #b91c1c); border-radius: 12px; padding: 20px; text-align: center;">
-                        <div style="color: rgba(255,255,255,0.7); font-size: 10px; letter-spacing: 1px;">NOTA GERAL</div>
-                        <div style="color: white; font-size: 42px; font-weight: 800;">{p['Nota_Desempenho']:.2f}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    try:
+                        nota = float(p['Nota_Desempenho'])
+                        st.markdown(f"""
+                        <div style="background: linear-gradient(135deg, {COLORS['accent']}, #b91c1c); border-radius: 12px; padding: 20px; text-align: center;">
+                            <div style="color: rgba(255,255,255,0.7); font-size: 10px; letter-spacing: 1px;">NOTA GERAL</div>
+                            <div style="color: white; font-size: 42px; font-weight: 800;">{nota:.2f}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    except (ValueError, TypeError):
+                        pass
                 if pd.notna(p.get('Link_TM')):
                     st.link_button("🔗 Transfermarkt", p['Link_TM'], use_container_width=True)
             
