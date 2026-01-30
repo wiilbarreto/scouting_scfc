@@ -8,7 +8,7 @@ from urllib.parse import quote
 # CONFIG
 # ============================================
 st.set_page_config(
-    page_title="Scouting Dashboard | Botafogo-SP",
+    page_title="Scouting Dashboard | Botafogo-SA",
     page_icon="⚽",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -388,7 +388,51 @@ SERIE_B_TEAMS = [
 ]
 
 # ============================================
-# FUNÇÕES
+# FUNÇÕES AUXILIARES DE CONVERSÃO
+# ============================================
+
+def safe_float(val, default=None):
+    """Converte valor para float de forma segura (Google Sheets retorna strings)"""
+    if pd.isna(val):
+        return default
+    try:
+        # Tratar vírgula como separador decimal
+        if isinstance(val, str):
+            val = val.replace(',', '.')
+        return float(val)
+    except (ValueError, TypeError):
+        return default
+
+
+def safe_int(val, default=None):
+    """Converte valor para int de forma segura"""
+    num = safe_float(val)
+    if num is None:
+        return default
+    return int(num)
+
+
+def display_int(val, suffix='', default='-'):
+    """Retorna string formatada do inteiro ou default"""
+    num = safe_int(val)
+    if num is None:
+        return default
+    return f"{num}{suffix}"
+
+
+def safe_format(val, fmt=".2f", default="-"):
+    """Formata valor numérico de forma segura"""
+    num = safe_float(val)
+    if num is None:
+        return default
+    try:
+        return f"{num:{fmt}}"
+    except (ValueError, TypeError):
+        return default
+
+
+# ============================================
+# FUNÇÕES DE CARREGAMENTO
 # ============================================
 
 @st.cache_data(ttl=300)  # Cache por 5 minutos para Google Sheets
@@ -443,6 +487,28 @@ def load_data(uploaded_file=None, use_google_sheets=True):
         except:
             return None, None, None, None
     
+    # CONVERTER COLUNAS NUMÉRICAS DO WYSCOUT (Google Sheets retorna strings)
+    numeric_cols_ws = [col for col in wyscout.columns if col not in ['Jogador', 'Equipa', 'Equipa dentro de um período de tempo seleccionado', 'Posição', 'Naturalidade', 'País de nacionalidade', 'Pé', 'Emprestado', 'JogadorDisplay']]
+    for col in numeric_cols_ws:
+        if col in wyscout.columns:
+            # Substituir vírgula por ponto e converter
+            wyscout[col] = wyscout[col].apply(lambda x: str(x).replace(',', '.') if pd.notna(x) and isinstance(x, str) else x)
+            wyscout[col] = pd.to_numeric(wyscout[col], errors='coerce')
+    
+    # CONVERTER COLUNAS NUMÉRICAS DO SKILLCORNER
+    exclude_sc = ['player_id', 'player_name', 'short_name', 'birthday', 'team_id', 'team_name', 'competition_edition_id', 'competition_edition_name', 'competition_id', 'competition_name', 'season_id', 'season_name', 'position_group', 'position_group_detailed', 'data_point_id', 'PlayerDisplay']
+    for col in skillcorner.columns:
+        if col not in exclude_sc:
+            skillcorner[col] = skillcorner[col].apply(lambda x: str(x).replace(',', '.') if pd.notna(x) and isinstance(x, str) else x)
+            skillcorner[col] = pd.to_numeric(skillcorner[col], errors='coerce')
+    
+    # CONVERTER COLUNAS NUMÉRICAS DO ANÁLISES
+    numeric_cols_an = ['Idade', 'Ano', 'Técnica', 'Físico', 'Tática', 'Mental', 'Nota_Desempenho', 'Potencial']
+    for col in numeric_cols_an:
+        if col in analises.columns:
+            analises[col] = analises[col].apply(lambda x: str(x).replace(',', '.') if pd.notna(x) and isinstance(x, str) else x)
+            analises[col] = pd.to_numeric(analises[col], errors='coerce')
+    
     # Criar coluna de display para diferenciar jogadores com nomes iguais
     # Formato: "Jogador (Equipa)" ou "Jogador (Equipa, Idade)" se ainda duplicado
     wyscout['JogadorDisplay'] = wyscout.apply(
@@ -452,10 +518,15 @@ def load_data(uploaded_file=None, use_google_sheets=True):
     
     # Verificar duplicatas e adicionar idade para diferenciar
     dup_mask = wyscout['JogadorDisplay'].duplicated(keep=False)
-    wyscout.loc[dup_mask, 'JogadorDisplay'] = wyscout.loc[dup_mask].apply(
-        lambda r: f"{r['Jogador']} ({r['Equipa']}, {int(r['Idade'])}a)" if pd.notna(r['Idade']) else f"{r['Jogador']} ({r['Equipa']}, {r['Posição']})",
-        axis=1
-    )
+    
+    def format_display_with_age(r):
+        idade = safe_int(r['Idade'])
+        if idade is not None:
+            return f"{r['Jogador']} ({r['Equipa']}, {idade}a)"
+        else:
+            return f"{r['Jogador']} ({r['Equipa']}, {r['Posição']})"
+    
+    wyscout.loc[dup_mask, 'JogadorDisplay'] = wyscout.loc[dup_mask].apply(format_display_with_age, axis=1)
     
     # Se AINDA houver duplicatas (dados realmente duplicados), adicionar índice
     dup_mask2 = wyscout['JogadorDisplay'].duplicated(keep=False)
@@ -485,46 +556,6 @@ def load_data(uploaded_file=None, use_google_sheets=True):
         skillcorner.drop('_dup_count', axis=1, inplace=True)
     
     return analises, oferecidos, skillcorner, wyscout
-
-
-def safe_float(val, default=None):
-    """Converte valor para float de forma segura (Google Sheets retorna strings)"""
-    if pd.isna(val):
-        return default
-    try:
-        # Tratar vírgula como separador decimal
-        if isinstance(val, str):
-            val = val.replace(',', '.')
-        return float(val)
-    except (ValueError, TypeError):
-        return default
-
-
-def safe_int(val, default=None):
-    """Converte valor para int de forma segura"""
-    num = safe_float(val)
-    if num is None:
-        return default
-    return int(num)
-
-
-def display_int(val, suffix='', default='-'):
-    """Retorna string formatada do inteiro ou default"""
-    num = safe_int(val)
-    if num is None:
-        return default
-    return f"{num}{suffix}"
-
-
-def safe_format(val, fmt=".2f", default="-"):
-    """Formata valor numérico de forma segura"""
-    num = safe_float(val)
-    if num is None:
-        return default
-    try:
-        return f"{num:{fmt}}"
-    except (ValueError, TypeError):
-        return default
 
 
 def get_posicao_categoria(posicao_str):
@@ -608,14 +639,20 @@ def calculate_percentile(value, series):
 def calculate_index(player_row, metrics, df_all):
     percentiles = []
     for metric in metrics:
-        if metric in player_row.index and metric in df_all.columns:
-            val = safe_float(player_row[metric])
-            if val is not None:
-                perc = calculate_percentile(val, df_all[metric])
-                if 'Faltas/90' in metric or 'Cartões' in metric or 'sofridos' in metric.lower():
-                    perc = 100 - perc
-                percentiles.append(perc)
-    return float(np.mean(percentiles)) if percentiles else 50.0
+        try:
+            if metric in player_row.index and metric in df_all.columns:
+                val = safe_float(player_row[metric])
+                if val is not None:
+                    perc = calculate_percentile(val, df_all[metric])
+                    if pd.notna(perc):
+                        if 'Faltas/90' in metric or 'Cartões' in metric or 'sofridos' in metric.lower():
+                            perc = 100 - perc
+                        percentiles.append(float(perc))
+        except:
+            continue
+    if percentiles:
+        return float(np.nanmean(percentiles))
+    return 50.0
 
 
 def get_color(value):
@@ -986,40 +1023,170 @@ def main():
                 """, unsafe_allow_html=True)
             
             with col2:
-                if pd.notna(p['Nota_Desempenho']):
-                    try:
-                        nota = float(p['Nota_Desempenho'])
-                        st.markdown(f"""
-                        <div style="background: linear-gradient(135deg, {COLORS['accent']}, #b91c1c); border-radius: 12px; padding: 20px; text-align: center;">
-                            <div style="color: rgba(255,255,255,0.7); font-size: 10px; letter-spacing: 1px;">NOTA GERAL</div>
-                            <div style="color: white; font-size: 42px; font-weight: 800;">{nota:.2f}</div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    except (ValueError, TypeError):
-                        pass
+                nota = safe_float(p.get('Nota_Desempenho'))
+                if nota is not None:
+                    st.markdown(f"""
+                    <div style="background: linear-gradient(135deg, {COLORS['accent']}, #b91c1c); border-radius: 12px; padding: 20px; text-align: center;">
+                        <div style="color: rgba(255,255,255,0.7); font-size: 10px; letter-spacing: 1px;">NOTA GERAL</div>
+                        <div style="color: white; font-size: 42px; font-weight: 800;">{nota:.2f}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
                 if pd.notna(p.get('Link_TM')):
-                    st.link_button("🔗 Transfermarkt", p['Link_TM'], use_container_width=True)
+                    st.link_button("🔗 Transfermarkt", p['Link_TM'], width='stretch')
             
-            # LEGENDA BEM VISÍVEL
+            # BUSCAR JOGADOR NO WYSCOUT PARA GRÁFICOS DETALHADOS
+            nome_jogador = p['Nome']
+            clube_jogador = p.get('Clube', '')
+            posicao_jogador = p.get('Posição', '')
+            
+            # Tentar match no WyScout
+            ws_match = None
+            if clube_jogador:
+                ws_filter = wyscout[wyscout['Equipa'].str.contains(str(clube_jogador).split()[0], case=False, na=False)]
+                for _, row in ws_filter.iterrows():
+                    if normalize_name(nome_jogador) in normalize_name(row['Jogador']) or normalize_name(row['Jogador']) in normalize_name(nome_jogador):
+                        ws_match = row
+                        break
+            
+            if ws_match is None:
+                for _, row in wyscout.iterrows():
+                    if normalize_name(nome_jogador) in normalize_name(row['Jogador']) or normalize_name(row['Jogador']) in normalize_name(nome_jogador):
+                        ws_match = row
+                        break
+            
+            # Determinar posição para índices
+            posicao_categoria = None
+            if posicao_jogador:
+                for pos in str(posicao_jogador).replace(' ', '').split(','):
+                    if pos in POSICAO_MAP:
+                        posicao_categoria = POSICAO_MAP[pos]
+                        break
+            
+            if posicao_categoria is None and ws_match is not None:
+                posicao_categoria = get_posicao_categoria(ws_match.get('Posição', ''))
+            
+            if posicao_categoria is None:
+                posicao_categoria = 'Meia'  # Default
+            
+            # LEGENDA
             st.markdown(create_legend_html(), unsafe_allow_html=True)
             
-            col1, col2 = st.columns(2)
-            with col1:
-                st.markdown(create_section_title("📊", "Atributos Qualitativos"), unsafe_allow_html=True)
-                attrs = {
-                    'Técnica': (p['Técnica'] / 5 * 100) if pd.notna(p['Técnica']) else 50,
-                    'Físico': (p['Físico'] / 5 * 100) if pd.notna(p['Físico']) else 50,
-                    'Tática': (p['Tática'] / 5 * 100) if pd.notna(p['Tática']) else 50,
-                    'Mental': (p['Mental'] / 5 * 100) if pd.notna(p['Mental']) else 50,
-                }
-                st.plotly_chart(create_wyscout_radar(attrs), use_container_width=True, config={'displayModeBar': False}, key="radar_attrs")
+            if ws_match is not None:
+                # Filtrar jogadores da mesma posição
+                wyscout_pos = wyscout[wyscout['Posição'].apply(get_posicao_categoria) == posicao_categoria].copy()
+                n_jogadores_pos = len(wyscout_pos)
+                
+                # Calcular índices compostos
+                indices = INDICES_CONFIG.get(posicao_categoria, INDICES_CONFIG['Meia'])
+                indices_values = {idx_name: calculate_index(ws_match, metrics, wyscout) for idx_name, metrics in indices.items()}
+                
+                # Header com info do match
+                st.markdown(f"""
+                <div style="background: {COLORS['card']}; border-radius: 8px; padding: 12px; margin: 16px 0; border: 1px solid {COLORS['border']}; text-align: center;">
+                    <span style="color: {COLORS['accent']}; font-weight: 600;">Dados Wyscout:</span>
+                    <span style="color: white; font-weight: 600;"> {ws_match['Jogador']}</span>
+                    <span style="color: {COLORS['text_secondary']};"> • {ws_match['Equipa']} • {display_int(ws_match['Minutos jogados:'], ' min', '0 min')}</span>
+                    <span style="color: {COLORS['text_muted']};"> | Comparando com {n_jogadores_pos} {posicao_categoria.lower()}s</span>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown(create_section_title("📊", f"Índices Compostos ({posicao_categoria})"), unsafe_allow_html=True)
+                    st.plotly_chart(create_wyscout_radar(indices_values), width='stretch', config={'displayModeBar': False}, key="radar_idx_t1")
+                
+                with col2:
+                    # Métricas individuais mais importantes para a posição
+                    st.markdown(create_section_title("📈", "Métricas Principais"), unsafe_allow_html=True)
+                    
+                    # Pegar as métricas mais relevantes
+                    all_metrics = []
+                    for idx_name, metrics in indices.items():
+                        all_metrics.extend(metrics[:2])  # 2 principais de cada índice
+                    
+                    # Limitar a 12 métricas
+                    top_metrics = all_metrics[:12]
+                    metrics_perc = {}
+                    for m in top_metrics:
+                        if m in ws_match.index and m in wyscout.columns:
+                            perc = calculate_percentile(ws_match[m], wyscout[m])
+                            # Nome curto para o radar
+                            short_name = m.replace('/90', '').replace(', %', '%').replace('Duelos ', '').replace('ganhos', '%')[:15]
+                            metrics_perc[short_name] = perc
+                    
+                    if metrics_perc:
+                        st.plotly_chart(create_wyscout_radar(metrics_perc), width='stretch', config={'displayModeBar': False}, key="radar_met_t1")
+                
+                # RANKING DA POSIÇÃO
+                st.markdown(create_section_title("🏆", f"Ranking de {posicao_categoria}s"), unsafe_allow_html=True)
+                
+                # Calcular índice médio para todos da posição
+                ranking_data = []
+                for _, row in wyscout_pos.iterrows():
+                    try:
+                        idx_vals = []
+                        for metrics in indices.values():
+                            idx_val = calculate_index(row, metrics, wyscout)
+                            if pd.notna(idx_val) and isinstance(idx_val, (int, float)):
+                                idx_vals.append(float(idx_val))
+                        
+                        if idx_vals:
+                            media = float(np.nanmean(idx_vals))
+                            if pd.notna(media):
+                                ranking_data.append({
+                                    'Jogador': row['Jogador'],
+                                    'Clube': row['Equipa'],
+                                    'Idade': safe_int(row.get('Idade')),
+                                    'Min': safe_int(row.get('Minutos jogados:')),
+                                    'Índice Médio': media
+                                })
+                    except Exception:
+                        continue
+                
+                if ranking_data:
+                    ranking_df = pd.DataFrame(ranking_data)
+                    ranking_df = ranking_df.sort_values('Índice Médio', ascending=False).head(20)
+                    ranking_df['#'] = range(1, len(ranking_df) + 1)
+                    ranking_df = ranking_df[['#', 'Jogador', 'Clube', 'Idade', 'Min', 'Índice Médio']]
+                    ranking_df['Índice Médio'] = ranking_df['Índice Médio'].apply(lambda x: f"{x:.0f}")
+                    
+                    # Destacar o jogador selecionado
+                    st.dataframe(
+                        ranking_df,
+                        width='stretch',
+                        hide_index=True,
+                        column_config={
+                            '#': st.column_config.NumberColumn(width='small'),
+                            'Jogador': st.column_config.TextColumn(width='medium'),
+                            'Clube': st.column_config.TextColumn(width='medium'),
+                            'Idade': st.column_config.NumberColumn(width='small'),
+                            'Min': st.column_config.NumberColumn(width='small'),
+                            'Índice Médio': st.column_config.TextColumn(width='small'),
+                        }
+                    )
             
-            with col2:
-                st.markdown(create_section_title("⭐", "Potencial"), unsafe_allow_html=True)
-                perc = attrs.copy()
-                perc['Potencial'] = (p['Potencial'] / 5 * 100) if pd.notna(p.get('Potencial')) else 50
-                st.plotly_chart(create_wyscout_radar(perc), use_container_width=True, config={'displayModeBar': False}, key="radar_potencial")
+            else:
+                # Se não encontrou no WyScout, mostrar só atributos qualitativos
+                st.info(f"⚠️ Jogador '{nome_jogador}' não encontrado na base WyScout. Mostrando apenas atributos qualitativos.")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown(create_section_title("📊", "Atributos Qualitativos"), unsafe_allow_html=True)
+                    attrs = {
+                        'Técnica': safe_float(p.get('Técnica'), 2.5) / 5 * 100,
+                        'Físico': safe_float(p.get('Físico'), 2.5) / 5 * 100,
+                        'Tática': safe_float(p.get('Tática'), 2.5) / 5 * 100,
+                        'Mental': safe_float(p.get('Mental'), 2.5) / 5 * 100,
+                    }
+                    st.plotly_chart(create_wyscout_radar(attrs), width='stretch', config={'displayModeBar': False}, key="radar_attrs_fb")
+                
+                with col2:
+                    st.markdown(create_section_title("⭐", "Potencial"), unsafe_allow_html=True)
+                    perc = attrs.copy()
+                    perc['Potencial'] = safe_float(p.get('Potencial'), 2.5) / 5 * 100
+                    st.plotly_chart(create_wyscout_radar(perc), width='stretch', config={'displayModeBar': False}, key="radar_pot_fb")
             
+            # Análise Qualitativa
             if pd.notna(p.get('Análise')):
                 st.markdown(create_section_title("📝", "Análise Qualitativa"), unsafe_allow_html=True)
                 st.markdown(f"""
@@ -1064,9 +1231,9 @@ def main():
             
             col1, col2 = st.columns(2)
             with col1:
-                st.plotly_chart(create_wyscout_radar(indices_values), use_container_width=True, config={'displayModeBar': False}, key="radar_indices")
+                st.plotly_chart(create_wyscout_radar(indices_values), width='stretch', config={'displayModeBar': False}, key="radar_indices")
             with col2:
-                st.plotly_chart(create_bar_chart(indices_values, "Ranking Percentil"), use_container_width=True, config={'displayModeBar': False}, key="bar_indices")
+                st.plotly_chart(create_bar_chart(indices_values, "Ranking Percentil"), width='stretch', config={'displayModeBar': False}, key="bar_indices")
             
             st.markdown(create_section_title("🔍", "Detalhamento por Índice"), unsafe_allow_html=True)
             
@@ -1135,10 +1302,10 @@ def main():
             col1, col2 = st.columns(2)
             with col1:
                 st.markdown(create_section_title("📊", "Perfil de Índices"), unsafe_allow_html=True)
-                st.plotly_chart(create_wyscout_radar(indices_values), use_container_width=True, config={'displayModeBar': False}, key="radar_rel")
+                st.plotly_chart(create_wyscout_radar(indices_values), width='stretch', config={'displayModeBar': False}, key="radar_rel")
             with col2:
                 st.markdown(create_section_title("📈", "Rankings"), unsafe_allow_html=True)
-                st.plotly_chart(create_bar_chart(indices_values), use_container_width=True, config={'displayModeBar': False}, key="bar_rel")
+                st.plotly_chart(create_bar_chart(indices_values), width='stretch', config={'displayModeBar': False}, key="bar_rel")
             
             st.markdown(create_section_title("📍", f"Posicionamento vs {posicao_rel}s da Liga"), unsafe_allow_html=True)
             
@@ -1158,14 +1325,14 @@ def main():
                     fig = create_scatter_plot(wyscout_pos, 'Golos esperados/90', 'Assistências esperadas/90', jogador_rel_display, 'xG vs xA por 90')
                 else:
                     fig = create_scatter_plot(wyscout_pos, 'Passes progressivos/90', 'Corridas progressivas/90', jogador_rel_display, 'Passes Prog. vs Corridas Prog.')
-                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False}, key="scatter1")
+                st.plotly_chart(fig, width='stretch', config={'displayModeBar': False}, key="scatter1")
             
             with col2:
                 if posicao_rel in ['Zagueiro', 'Volante']:
                     fig = create_scatter_plot(wyscout_pos, 'Duelos defensivos/90', 'Duelos defensivos ganhos, %', jogador_rel_display, 'Volume vs Eficiência Defensiva')
                 else:
                     fig = create_scatter_plot(wyscout_pos, 'Dribles/90', 'Dribles com sucesso, %', jogador_rel_display, 'Volume vs Eficiência 1x1')
-                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False}, key="scatter2")
+                st.plotly_chart(fig, width='stretch', config={'displayModeBar': False}, key="scatter2")
             
             # SkillCorner - DADOS FÍSICOS
             st.markdown(create_section_title("🏃", "Dados Físicos SkillCorner"), unsafe_allow_html=True)
@@ -1268,9 +1435,9 @@ def main():
                 if physical_perc:
                     col1, col2 = st.columns(2)
                     with col1:
-                        st.plotly_chart(create_wyscout_radar(physical_perc), use_container_width=True, config={'displayModeBar': False}, key="radar_sc_phys")
+                        st.plotly_chart(create_wyscout_radar(physical_perc), width='stretch', config={'displayModeBar': False}, key="radar_sc_phys")
                     with col2:
-                        st.plotly_chart(create_bar_chart(physical_perc, "Perfil Físico (Percentil)"), use_container_width=True, config={'displayModeBar': False}, key="bar_sc_phys")
+                        st.plotly_chart(create_bar_chart(physical_perc, "Perfil Físico (Percentil)"), width='stretch', config={'displayModeBar': False}, key="bar_sc_phys")
                     
                     # Cards com valores absolutos
                     st.markdown("<br>", unsafe_allow_html=True)
@@ -1319,9 +1486,9 @@ def main():
                     st.markdown(create_section_title("🎯", "Índices de Estilo de Jogo"), unsafe_allow_html=True)
                     col1, col2 = st.columns(2)
                     with col1:
-                        st.plotly_chart(create_wyscout_radar(sc_style_perc), use_container_width=True, config={'displayModeBar': False}, key="radar_sc_style")
+                        st.plotly_chart(create_wyscout_radar(sc_style_perc), width='stretch', config={'displayModeBar': False}, key="radar_sc_style")
                     with col2:
-                        st.plotly_chart(create_bar_chart(sc_style_perc, "Índices de Estilo"), use_container_width=True, config={'displayModeBar': False}, key="bar_sc_style")
+                        st.plotly_chart(create_bar_chart(sc_style_perc, "Índices de Estilo"), width='stretch', config={'displayModeBar': False}, key="bar_sc_style")
                 else:
                     st.info("ℹ️ Índices de estilo de jogo não disponíveis para este jogador (apenas 435 de 3.298 jogadores têm)")
     
@@ -1384,7 +1551,7 @@ def main():
                 """, unsafe_allow_html=True)
             
             st.markdown("<br>", unsafe_allow_html=True)
-            st.plotly_chart(create_comparison_radar(idx1, idx2, j1, j2), use_container_width=True, config={'displayModeBar': False}, key="radar_cmp")
+            st.plotly_chart(create_comparison_radar(idx1, idx2, j1, j2), width='stretch', config={'displayModeBar': False}, key="radar_cmp")
             
             st.markdown(create_section_title("📊", "Tabela Comparativa"), unsafe_allow_html=True)
             
@@ -1400,7 +1567,7 @@ def main():
                     'Vantagem': '🔴' if diff > 0 else '🔵' if diff < 0 else '='
                 })
             
-            st.dataframe(pd.DataFrame(comparison_data), use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame(comparison_data), width='stretch', hide_index=True)
             
             # COMPARATIVO FÍSICO SKILLCORNER
             st.markdown(create_section_title("🏃", "Comparativo Físico (SkillCorner)"), unsafe_allow_html=True)
@@ -1460,7 +1627,7 @@ def main():
                                 pass
                 
                 if phys1 and phys2:
-                    st.plotly_chart(create_comparison_radar(phys1, phys2, j1, j2), use_container_width=True, config={'displayModeBar': False}, key="radar_phys_cmp")
+                    st.plotly_chart(create_comparison_radar(phys1, phys2, j1, j2), width='stretch', config={'displayModeBar': False}, key="radar_phys_cmp")
                     
                     # Tabela comparativa física
                     phys_comparison = []
@@ -1475,7 +1642,7 @@ def main():
                             'Vantagem': '🔴' if diff > 0 else '🔵' if diff < 0 else '='
                         })
                     
-                    st.dataframe(pd.DataFrame(phys_comparison), use_container_width=True, hide_index=True)
+                    st.dataframe(pd.DataFrame(phys_comparison), width='stretch', hide_index=True)
                 else:
                     st.warning("⚠️ Dados físicos não disponíveis para comparação")
             else:
@@ -1501,7 +1668,7 @@ def main():
             name_col = 'Jogador' if 'Jogador' in df_show.columns else 'player_name' if 'player_name' in df_show.columns else 'Nome'
             df_show = df_show[df_show[name_col].str.contains(search, case=False, na=False)]
         
-        st.dataframe(df_show, use_container_width=True, height=500)
+        st.dataframe(df_show, width='stretch', height=500)
         st.download_button("📥 Exportar CSV", df_show.to_csv(index=False).encode('utf-8'), f"{source.lower()}.csv", key='download_csv')
 
 
