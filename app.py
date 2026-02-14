@@ -3,12 +3,15 @@ import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
 from urllib.parse import quote
+import requests
+from bs4 import BeautifulSoup
+import re
 
 # ============================================
 # CONFIG
 # ============================================
 st.set_page_config(
-    page_title="Scouting Dashboard | Botafogo SA",
+    page_title="Scouting Dashboard | Botafogo-SP",
     page_icon="⚽",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -441,6 +444,129 @@ def safe_str(val, default='-'):
     if s.lower() in ('nan', 'none', 'nat', ''):
         return default
     return s
+
+
+# ============================================
+# FUNÇÕES DE SCRAPING (OGol/Transfermarkt)
+# ============================================
+
+@st.cache_data(ttl=3600)  # Cache por 1 hora
+def scrape_ogol_data(ogol_url):
+    """Faz scraping do OGol para obter foto e histórico do jogador"""
+    if not ogol_url or pd.isna(ogol_url) or not str(ogol_url).startswith('http'):
+        return None
+    
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        response = requests.get(ogol_url, headers=headers, timeout=10)
+        response.encoding = 'utf-8'
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        data = {
+            'foto': None,
+            'carreira': [],
+            'info': {}
+        }
+        
+        # Extrair foto do jogador
+        for img in soup.find_all('img'):
+            src = img.get('src', '')
+            if 'jogadores' in src.lower() and '.jpg' in src:
+                if not src.startswith('http'):
+                    src = 'https://www.ogol.com.br' + src
+                data['foto'] = src
+                break
+        
+        # Extrair carreira (tabela com TEMPORADA, EQUIPE, J, G)
+        tables = soup.find_all('table')
+        for table in tables:
+            headers = [th.get_text(strip=True).upper() for th in table.find_all('th')]
+            if 'TEMPORADA' in headers or 'EQUIPE' in headers:
+                rows = table.find_all('tr')[1:]  # Pular header
+                for row in rows[:5]:  # Últimas 5 temporadas
+                    cols = row.find_all('td')
+                    if len(cols) >= 4:
+                        data['carreira'].append({
+                            'temporada': cols[1].get_text(strip=True) if len(cols) > 1 else '',
+                            'equipe': cols[2].get_text(strip=True) if len(cols) > 2 else '',
+                            'jogos': cols[3].get_text(strip=True) if len(cols) > 3 else '',
+                            'gols': cols[4].get_text(strip=True) if len(cols) > 4 else '',
+                            'assists': cols[5].get_text(strip=True) if len(cols) > 5 else ''
+                        })
+                break
+        
+        return data
+    except Exception as e:
+        return None
+
+
+@st.cache_data(ttl=3600)
+def scrape_transfermarkt_data(tm_url):
+    """Faz scraping do Transfermarkt para obter dados do jogador"""
+    if not tm_url or pd.isna(tm_url) or not str(tm_url).startswith('http'):
+        return None
+    
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        response = requests.get(tm_url, headers=headers, timeout=10)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        data = {
+            'foto': None,
+            'contrato': None,
+            'valor': None,
+            'clube': None
+        }
+        
+        # Extrair foto
+        for img in soup.find_all('img'):
+            src = img.get('src', '')
+            if 'spieler' in src.lower() or 'header' in src.lower():
+                data['foto'] = src
+                break
+        
+        # Extrair contrato
+        for span in soup.find_all(['span', 'div', 'li']):
+            text = span.get_text(strip=True)
+            if 'contrato até' in text.lower() or 'contract until' in text.lower():
+                # Extrair data do contrato
+                match = re.search(r'(\d{2}/\d{2}/\d{4})', text)
+                if match:
+                    data['contrato'] = match.group(1)
+                break
+        
+        # Extrair valor de mercado
+        for span in soup.find_all(['span', 'div']):
+            text = span.get_text(strip=True)
+            if '€' in text and ('mi.' in text.lower() or 'mil' in text.lower()):
+                data['valor'] = text
+                break
+        
+        return data
+    except Exception as e:
+        return None
+
+
+def get_player_photo(p, ogol_data=None, tm_data=None):
+    """Retorna URL da foto do jogador priorizando: planilha > OGol > TM"""
+    # 1. Verificar se tem foto na planilha
+    foto_planilha = safe_str(p.get('Foto'), None)
+    if foto_planilha and foto_planilha.startswith('http'):
+        return foto_planilha
+    
+    # 2. Verificar OGol
+    if ogol_data and ogol_data.get('foto'):
+        return ogol_data['foto']
+    
+    # 3. Verificar Transfermarkt
+    if tm_data and tm_data.get('foto'):
+        return tm_data['foto']
+    
+    return None
 
 
 # ============================================
@@ -966,7 +1092,7 @@ def main():
         <div style="text-align:center; padding: 20px 0;">
             <div style="color: #dc2626; font-size: 11px; letter-spacing: 3px; font-weight: 600;">SCOUTING</div>
             <div style="color: white; font-size: 26px; font-weight: 800; letter-spacing: -1px;">BOTAFOGO</div>
-            <div style="color: #6b7280; font-size: 10px; letter-spacing: 2px;">SA</div>
+            <div style="color: #6b7280; font-size: 10px; letter-spacing: 2px;">RIBEIRÃO PRETO</div>
         </div>
         """, unsafe_allow_html=True)
         
@@ -1011,6 +1137,15 @@ def main():
             flag = get_flag(p.get('Nacionalidade', ''))
             club_logo = get_club_logo_html(p.get('Clube', ''), size=24)
             
+            # Scraping de dados externos (OGol e TM)
+            ogol_url = safe_str(p.get('ogol'), None)
+            tm_url = safe_str(p.get('TM'), None)
+            ogol_data = scrape_ogol_data(ogol_url) if ogol_url else None
+            
+            # Obter foto do jogador
+            foto_url = get_player_photo(p, ogol_data)
+            
+            # Layout: Info (3) | Foto + Nota (1)
             col1, col2 = st.columns([3, 1])
             
             with col1:
@@ -1035,16 +1170,90 @@ def main():
                 """, unsafe_allow_html=True)
             
             with col2:
+                # FOTO DO JOGADOR
+                if foto_url:
+                    st.markdown(f"""
+                    <div style="background: {COLORS['card']}; border-radius: 12px; padding: 8px; border: 1px solid {COLORS['border']}; text-align: center;">
+                        <img src="{foto_url}" style="width: 100%; max-height: 180px; object-fit: contain; border-radius: 8px;" onerror="this.style.display='none'"/>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
+                    <div style="background: {COLORS['card']}; border-radius: 12px; padding: 40px 20px; border: 1px solid {COLORS['border']}; text-align: center;">
+                        <div style="color: {COLORS['text_muted']}; font-size: 12px;">📷</div>
+                        <div style="color: {COLORS['text_muted']}; font-size: 10px; margin-top: 4px;">SEM FOTO</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                # NOTA GERAL
                 nota = safe_float(p.get('Nota_Desempenho'))
                 if nota is not None and nota > 0:
                     st.markdown(f"""
-                    <div style="background: linear-gradient(135deg, {COLORS['accent']}, #b91c1c); border-radius: 12px; padding: 20px; text-align: center;">
-                        <div style="color: rgba(255,255,255,0.7); font-size: 10px; letter-spacing: 1px;">NOTA GERAL</div>
-                        <div style="color: white; font-size: 42px; font-weight: 800;">{nota:.2f}</div>
+                    <div style="background: linear-gradient(135deg, {COLORS['accent']}, #b91c1c); border-radius: 12px; padding: 15px; text-align: center; margin-top: 8px;">
+                        <div style="color: rgba(255,255,255,0.7); font-size: 9px; letter-spacing: 1px;">NOTA</div>
+                        <div style="color: white; font-size: 32px; font-weight: 800;">{nota:.1f}</div>
                     </div>
                     """, unsafe_allow_html=True)
-                if pd.notna(p.get('Link_TM')):
-                    st.link_button("🔗 Transfermarkt", p['Link_TM'], width='stretch')
+            
+            # LINKS EXTERNOS (Vídeo, Relatório, TM, OGol)
+            video_url = safe_str(p.get('Vídeo'), None)
+            relatorio_url = safe_str(p.get('Relatório'), None)
+            
+            links_html = []
+            # Vídeo - pode ser URL ou nome de arquivo
+            if video_url:
+                if video_url.startswith('http'):
+                    links_html.append(f'<a href="{video_url}" target="_blank" style="background: {COLORS["card"]}; color: {COLORS["accent"]}; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-size: 12px; border: 1px solid {COLORS["border"]};">🎬 Vídeo</a>')
+                else:
+                    # Nome de arquivo - mostrar como indicador (sem link)
+                    links_html.append(f'<span style="background: {COLORS["card"]}; color: {COLORS["accent"]}; padding: 8px 16px; border-radius: 6px; font-size: 12px; border: 1px solid {COLORS["border"]};" title="{video_url}">🎬 Vídeo ✓</span>')
+            
+            # Relatório - pode ser URL ou nome de arquivo
+            if relatorio_url:
+                if relatorio_url.startswith('http'):
+                    links_html.append(f'<a href="{relatorio_url}" target="_blank" style="background: {COLORS["card"]}; color: {COLORS["accent"]}; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-size: 12px; border: 1px solid {COLORS["border"]};">📄 Relatório</a>')
+                else:
+                    links_html.append(f'<span style="background: {COLORS["card"]}; color: {COLORS["accent"]}; padding: 8px 16px; border-radius: 6px; font-size: 12px; border: 1px solid {COLORS["border"]};" title="{relatorio_url}">📄 Relatório ✓</span>')
+            
+            if tm_url:
+                links_html.append(f'<a href="{tm_url}" target="_blank" style="background: {COLORS["card"]}; color: #00b386; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-size: 12px; border: 1px solid {COLORS["border"]};">🔗 Transfermarkt</a>')
+            if ogol_url:
+                links_html.append(f'<a href="{ogol_url}" target="_blank" style="background: {COLORS["card"]}; color: #3b82f6; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-size: 12px; border: 1px solid {COLORS["border"]};">⚽ OGol</a>')
+            
+            if links_html:
+                st.markdown(f"""
+                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0;">
+                    {' '.join(links_html)}
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # HISTÓRICO DE CARREIRA (do OGol)
+            if ogol_data and ogol_data.get('carreira'):
+                st.markdown(create_section_title("📜", "Histórico Recente (OGol)"), unsafe_allow_html=True)
+                
+                carreira_html = f"""
+                <div style="background: {COLORS['card']}; border-radius: 8px; padding: 12px; border: 1px solid {COLORS['border']};">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                        <tr style="color: {COLORS['text_muted']}; border-bottom: 1px solid {COLORS['border']};">
+                            <th style="padding: 8px; text-align: left;">Temporada</th>
+                            <th style="padding: 8px; text-align: left;">Equipe</th>
+                            <th style="padding: 8px; text-align: center;">J</th>
+                            <th style="padding: 8px; text-align: center;">G</th>
+                            <th style="padding: 8px; text-align: center;">A</th>
+                        </tr>
+                """
+                for item in ogol_data['carreira']:
+                    carreira_html += f"""
+                        <tr style="color: white; border-bottom: 1px solid {COLORS['border']};">
+                            <td style="padding: 8px;">{item.get('temporada', '-')}</td>
+                            <td style="padding: 8px;">{item.get('equipe', '-')}</td>
+                            <td style="padding: 8px; text-align: center;">{item.get('jogos', '-')}</td>
+                            <td style="padding: 8px; text-align: center;">{item.get('gols', '-')}</td>
+                            <td style="padding: 8px; text-align: center;">{item.get('assists', '-')}</td>
+                        </tr>
+                    """
+                carreira_html += "</table></div>"
+                st.markdown(carreira_html, unsafe_allow_html=True)
             
             # BUSCAR JOGADOR NO WYSCOUT PARA GRÁFICOS DETALHADOS
             nome_jogador = p['Nome']
