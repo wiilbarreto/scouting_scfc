@@ -766,6 +766,23 @@ def get_player_photo(p, ogol_data=None, tm_data=None):
 # FUNÇÕES DE CARREGAMENTO
 # ============================================
 
+@st.cache_data
+def create_skillcorner_lookup(skillcorner_df):
+    """Cria lookup dict do SkillCorner para busca O(1)"""
+    sc_lookup = {}
+    for _, sc_row in skillcorner_df.iterrows():
+        nome_norm = normalize_name(str(sc_row.get('player_name', '')))
+        if nome_norm and nome_norm not in sc_lookup:
+            sc_data_temp = {}
+            for sc_idx in ['Direct striker index', 'Ball retention index', 'Buildup index']:
+                if sc_idx in sc_row.index:
+                    val = safe_float(sc_row[sc_idx])
+                    if val is not None:
+                        sc_data_temp[sc_idx.replace(' index', '').replace('striker ', '')] = round(val, 1)
+            if sc_data_temp:
+                sc_lookup[nome_norm] = sc_data_temp
+    return sc_lookup
+
 @st.cache_data(ttl=300)  # Cache por 5 minutos para Google Sheets
 def load_from_google_sheets():
     """Carrega dados diretamente do Google Sheets"""
@@ -2373,41 +2390,39 @@ def main():
                 indices_cfg = INDICES_CONFIG.get(posicao_calc, INDICES_CONFIG['Meia'])
                 ranking_data = []
                 
-                for _, row in df_rank.iterrows():
-                    try:
-                        idx_vals = {}
-                        for idx_name, metrics in indices_cfg.items():
-                            idx_val = calculate_index(row, metrics, wyscout)
-                            if pd.notna(idx_val):
-                                idx_vals[idx_name] = float(idx_val)
-                        
-                        if idx_vals:
-                            media = float(np.nanmean(list(idx_vals.values())))
+                # Usar lookup cached do SkillCorner (O(1) ao invés de O(n²))
+                sc_lookup = create_skillcorner_lookup(skillcorner)
+                
+                # Limitar para performance (calcular só top candidatos)
+                df_rank_limited = df_rank.head(500)
+                
+                with st.spinner(f'Calculando índices para {len(df_rank_limited)} jogadores...'):
+                    for _, row in df_rank_limited.iterrows():
+                        try:
+                            idx_vals = {}
+                            for idx_name, metrics in indices_cfg.items():
+                                idx_val = calculate_index(row, metrics, wyscout)
+                                if pd.notna(idx_val):
+                                    idx_vals[idx_name] = float(idx_val)
                             
-                            # Tentar integrar dados SkillCorner
-                            sc_data = {}
-                            nome_jogador = normalize_name(row['Jogador'])
-                            for _, sc_row in skillcorner.iterrows():
-                                if normalize_name(str(sc_row.get('player_name', ''))) == nome_jogador:
-                                    # Pegar alguns índices físicos se disponíveis
-                                    for sc_idx in ['Direct striker index', 'Ball retention index', 'Buildup index']:
-                                        if sc_idx in sc_row.index:
-                                            val = safe_float(sc_row[sc_idx])
-                                            if val is not None:
-                                                sc_data[sc_idx.replace(' index', '').replace('striker ', '')] = round(val, 1)
-                                    break
-                            
-                            ranking_data.append({
-                                'Jogador': row['Jogador'],
-                                'Clube': row.get('Equipa', row.get('Team', '-')),
-                                'Idade': safe_int(row.get('Idade')),
-                                'Min': safe_int(row.get('Minutos jogados:')),
-                                'Índice': round(media, 1),
-                                **{k: round(v, 1) for k, v in idx_vals.items()},
-                                **sc_data
-                            })
-                    except:
-                        continue
+                            if idx_vals:
+                                media = float(np.nanmean(list(idx_vals.values())))
+                                
+                                # Buscar dados SkillCorner via lookup O(1)
+                                nome_jogador = normalize_name(row['Jogador'])
+                                sc_data = sc_lookup.get(nome_jogador, {})
+                                
+                                ranking_data.append({
+                                    'Jogador': row['Jogador'],
+                                    'Clube': row.get('Equipa', row.get('Team', '-')),
+                                    'Idade': safe_int(row.get('Idade')),
+                                    'Min': safe_int(row.get('Minutos jogados:')),
+                                    'Índice': round(media, 1),
+                                    **{k: round(v, 1) for k, v in idx_vals.items()},
+                                    **sc_data
+                                })
+                        except:
+                            continue
                 
                 if ranking_data:
                     df_resultado = pd.DataFrame(ranking_data)
@@ -2582,41 +2597,45 @@ def main():
                     # Excluir o próprio jogador
                     df_candidatos = df_candidatos[df_candidatos['JogadorDisplay'] != jogador_ref]
                     
+                    # Limitar candidatos para performance
+                    df_candidatos = df_candidatos.head(1000)
+                    
                     # Calcular similaridade
                     similaridades = []
                     
-                    for _, row in df_candidatos.iterrows():
-                        try:
-                            perfil_cand = {}
-                            for m in metricas_sim:
-                                if m in row.index and m in wyscout.columns:
-                                    val = safe_float(row[m])
-                                    if val is not None:
-                                        perc = calculate_percentile(val, wyscout[m])
-                                        if pd.notna(perc):
-                                            perfil_cand[m] = float(perc)
-                            
-                            # Calcular distância euclidiana
-                            metricas_comuns = set(perfil_ref.keys()) & set(perfil_cand.keys())
-                            if len(metricas_comuns) >= 5:  # Mínimo de métricas para comparar
-                                distancia = 0
-                                for m in metricas_comuns:
-                                    distancia += (perfil_ref[m] - perfil_cand[m]) ** 2
-                                distancia = np.sqrt(distancia / len(metricas_comuns))
+                    with st.spinner(f'Calculando similaridade com {len(df_candidatos)} jogadores...'):
+                        for _, row in df_candidatos.iterrows():
+                            try:
+                                perfil_cand = {}
+                                for m in metricas_sim:
+                                    if m in row.index and m in wyscout.columns:
+                                        val = safe_float(row[m])
+                                        if val is not None:
+                                            perc = calculate_percentile(val, wyscout[m])
+                                            if pd.notna(perc):
+                                                perfil_cand[m] = float(perc)
                                 
-                                # Converter para similaridade (0-100)
-                                similaridade = max(0, 100 - distancia)
-                                
-                                similaridades.append({
-                                    'Jogador': row['Jogador'],
-                                    'Clube': row.get('Equipa', '-'),
-                                    'Idade': safe_int(row.get('Idade')),
-                                    'Min': safe_int(row.get('Minutos jogados:')),
-                                    'Similaridade': round(similaridade, 1),
-                                    'Métricas': len(metricas_comuns)
-                                })
-                        except:
-                            continue
+                                # Calcular distância euclidiana
+                                metricas_comuns = set(perfil_ref.keys()) & set(perfil_cand.keys())
+                                if len(metricas_comuns) >= 5:  # Mínimo de métricas para comparar
+                                    distancia = 0
+                                    for m in metricas_comuns:
+                                        distancia += (perfil_ref[m] - perfil_cand[m]) ** 2
+                                    distancia = np.sqrt(distancia / len(metricas_comuns))
+                                    
+                                    # Converter para similaridade (0-100)
+                                    similaridade = max(0, 100 - distancia)
+                                    
+                                    similaridades.append({
+                                        'Jogador': row['Jogador'],
+                                        'Clube': row.get('Equipa', '-'),
+                                        'Idade': safe_int(row.get('Idade')),
+                                        'Min': safe_int(row.get('Minutos jogados:')),
+                                        'Similaridade': round(similaridade, 1),
+                                        'Métricas': len(metricas_comuns)
+                                    })
+                            except:
+                                continue
                     
                     if similaridades:
                         df_sim = pd.DataFrame(similaridades)
