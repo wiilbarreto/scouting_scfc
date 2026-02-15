@@ -11,7 +11,7 @@ import re
 # CONFIG
 # ============================================
 st.set_page_config(
-    page_title="Scouting Dashboard | Botafogo SA",
+    page_title="Scouting Dashboard | Botafogo-SP",
     page_icon="⚽",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -1319,7 +1319,7 @@ def main():
         st.caption(f"📊 {len(analises)} análises | 📈 {len(wyscout)} Wyscout")
         st.caption(f"🏃 {len(skillcorner)} SkillCorner ({sc_with_idx} com índices)")
     
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Perfil", "📈 Índices", "📋 Relatório", "🔄 Comparativo", "🗂️ Dados"])
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["📊 Perfil", "📈 Índices", "📋 Relatório", "🔄 Comparativo", "🗂️ Dados", "🏆 Ranking", "🔍 Similaridade"])
     
     # ===== TAB 1: PERFIL =====
     with tab1:
@@ -2202,6 +2202,463 @@ def main():
         
         st.dataframe(df_show, width='stretch', height=500)
         st.download_button("📥 Exportar CSV", df_show.to_csv(index=False).encode('utf-8'), f"{source.lower()}.csv", key='download_csv')
+    
+    # ===== TAB 6: RANKING =====
+    with tab6:
+        st.markdown(create_section_title("🏆", "Ranking de Jogadores"), unsafe_allow_html=True)
+        
+        # Info dos dados disponíveis
+        st.markdown(f"""
+        <div style="background: {COLORS['card']}; border-radius: 8px; padding: 12px; margin-bottom: 16px; border: 1px solid {COLORS['border']};">
+            <span style="color: {COLORS['text_muted']}; font-size: 12px;">
+                📊 {len(wyscout)} jogadores WyScout | 🏃 {len(skillcorner)} jogadores SkillCorner (dados físicos integrados quando disponíveis)
+            </span>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # ===== FILTROS LINHA 1 =====
+        col_f1, col_f2, col_f3, col_f4 = st.columns(4)
+        
+        with col_f1:
+            posicao_rank = st.selectbox("📍 Posição", ['Todas'] + list(INDICES_CONFIG.keys()), key='pos_ranking')
+        
+        with col_f2:
+            # Ligas únicas
+            ligas_unicas = sorted([str(l) for l in wyscout['Liga'].dropna().unique() if str(l) not in ('nan', '')])
+            liga_rank = st.selectbox("🏆 Liga", ['Todas'] + ligas_unicas, key='liga_ranking')
+        
+        with col_f3:
+            # Clubes únicos
+            if liga_rank != 'Todas':
+                clubes_liga = sorted([str(c) for c in wyscout[wyscout['Liga'] == liga_rank]['Equipa'].dropna().unique() if str(c) not in ('nan', '')])
+            else:
+                clubes_liga = sorted([str(c) for c in wyscout['Equipa'].dropna().unique() if str(c) not in ('nan', '')])
+            clube_rank = st.selectbox("🏟️ Clube", ['Todos'] + clubes_liga, key='clube_ranking')
+        
+        with col_f4:
+            # Nacionalidades
+            if 'Passaporte' in wyscout.columns:
+                nac_col = 'Passaporte'
+            elif 'Nacionalidade' in wyscout.columns:
+                nac_col = 'Nacionalidade'
+            else:
+                nac_col = None
+            
+            if nac_col:
+                nacionalidades = sorted([str(n) for n in wyscout[nac_col].dropna().unique() if str(n) not in ('nan', '')])
+                nac_rank = st.selectbox("🌍 Nacionalidade", ['Todas'] + nacionalidades, key='nac_ranking')
+            else:
+                nac_rank = 'Todas'
+        
+        # ===== FILTROS LINHA 2 =====
+        col_f5, col_f6, col_f7, col_f8 = st.columns(4)
+        
+        with col_f5:
+            idade_range = st.slider("📅 Idade", 15, 45, (18, 35), key='idade_ranking')
+        
+        with col_f6:
+            min_minutos = st.number_input("⏱️ Minutos Mín", min_value=0, max_value=5000, value=500, step=100, key='min_min_rank')
+        
+        with col_f7:
+            # Pé preferido
+            if 'Pé' in wyscout.columns:
+                pes = ['Todos'] + sorted([str(p) for p in wyscout['Pé'].dropna().unique() if str(p) not in ('nan', '')])
+                pe_rank = st.selectbox("🦶 Pé Preferido", pes, key='pe_ranking')
+            else:
+                pe_rank = 'Todos'
+        
+        with col_f8:
+            # Altura
+            if 'Altura' in wyscout.columns:
+                altura_range = st.slider("📏 Altura (cm)", 150, 210, (160, 200), key='altura_ranking')
+            else:
+                altura_range = (150, 210)
+        
+        # ===== FILTROS LINHA 3 =====
+        col_f9, col_f10 = st.columns(2)
+        
+        with col_f9:
+            busca_nome = st.text_input("🔍 Buscar por nome", key='busca_ranking')
+        
+        with col_f10:
+            # Opções de ordenação baseadas na posição
+            if posicao_rank != 'Todas':
+                indices_posicao = INDICES_CONFIG.get(posicao_rank, {})
+                
+                # Métricas específicas por posição
+                metricas_especificas = []
+                for idx_name, metrics in indices_posicao.items():
+                    metricas_especificas.append(f"📊 {idx_name} (índice)")
+                    metricas_especificas.extend(metrics[:3])  # Top 3 métricas de cada índice
+                
+                metricas_ord = ['🎯 Índice Geral'] + metricas_especificas
+            else:
+                metricas_ord = [
+                    '🎯 Índice Geral',
+                    'Golos/90', 'Assistências/90', 'Golos esperados/90', 'Assistências esperadas/90',
+                    'Passes progressivos/90', 'Corridas progressivas/90', 'Dribles/90', 
+                    'Duelos ganhos, %', 'Interseções/90', 'Passes certos, %'
+                ]
+            ordenar_por = st.selectbox("📈 Ordenar por", metricas_ord, key='ordenar_ranking')
+        
+        # ===== APLICAR FILTROS =====
+        df_rank = wyscout.copy()
+        
+        # Filtro de posição
+        if posicao_rank != 'Todas':
+            df_rank = df_rank[df_rank['Posição'].apply(get_posicao_categoria) == posicao_rank]
+        
+        # Filtro de liga
+        if liga_rank != 'Todas':
+            df_rank = df_rank[df_rank['Liga'] == liga_rank]
+        
+        # Filtro de clube
+        if clube_rank != 'Todos':
+            df_rank = df_rank[df_rank['Equipa'] == clube_rank]
+        
+        # Filtro de nacionalidade
+        if nac_rank != 'Todas' and nac_col:
+            df_rank = df_rank[df_rank[nac_col].astype(str).str.contains(nac_rank, case=False, na=False)]
+        
+        # Filtro de idade
+        df_rank['Idade'] = df_rank['Idade'].apply(safe_float)
+        df_rank = df_rank[(df_rank['Idade'] >= idade_range[0]) & (df_rank['Idade'] <= idade_range[1])]
+        
+        # Filtro de minutos
+        df_rank['Minutos jogados:'] = df_rank['Minutos jogados:'].apply(safe_float)
+        df_rank = df_rank[df_rank['Minutos jogados:'] >= min_minutos]
+        
+        # Filtro de pé
+        if pe_rank != 'Todos' and 'Pé' in wyscout.columns:
+            df_rank = df_rank[df_rank['Pé'] == pe_rank]
+        
+        # Filtro de altura
+        if 'Altura' in wyscout.columns:
+            df_rank['Altura'] = df_rank['Altura'].apply(safe_float)
+            df_rank = df_rank[(df_rank['Altura'] >= altura_range[0]) & (df_rank['Altura'] <= altura_range[1]) | df_rank['Altura'].isna()]
+        
+        # Filtro de busca por nome
+        if busca_nome:
+            df_rank = df_rank[df_rank['Jogador'].str.contains(busca_nome, case=False, na=False)]
+        
+        # ===== CALCULAR E MOSTRAR RANKING =====
+        if len(df_rank) > 0:
+            st.markdown(f"**{len(df_rank)} jogadores encontrados**")
+            
+            # Verificar se é ordenação por índice
+            is_indice = ordenar_por.startswith('📊') or ordenar_por == '🎯 Índice Geral'
+            
+            if is_indice:
+                # Calcular índices compostos
+                if posicao_rank == 'Todas':
+                    posicao_calc = 'Meia'  # Default para cálculo
+                else:
+                    posicao_calc = posicao_rank
+                
+                indices_cfg = INDICES_CONFIG.get(posicao_calc, INDICES_CONFIG['Meia'])
+                ranking_data = []
+                
+                for _, row in df_rank.iterrows():
+                    try:
+                        idx_vals = {}
+                        for idx_name, metrics in indices_cfg.items():
+                            idx_val = calculate_index(row, metrics, wyscout)
+                            if pd.notna(idx_val):
+                                idx_vals[idx_name] = float(idx_val)
+                        
+                        if idx_vals:
+                            media = float(np.nanmean(list(idx_vals.values())))
+                            
+                            # Tentar integrar dados SkillCorner
+                            sc_data = {}
+                            nome_jogador = normalize_name(row['Jogador'])
+                            for _, sc_row in skillcorner.iterrows():
+                                if normalize_name(str(sc_row.get('player_name', ''))) == nome_jogador:
+                                    # Pegar alguns índices físicos se disponíveis
+                                    for sc_idx in ['Direct striker index', 'Ball retention index', 'Buildup index']:
+                                        if sc_idx in sc_row.index:
+                                            val = safe_float(sc_row[sc_idx])
+                                            if val is not None:
+                                                sc_data[sc_idx.replace(' index', '').replace('striker ', '')] = round(val, 1)
+                                    break
+                            
+                            ranking_data.append({
+                                'Jogador': row['Jogador'],
+                                'Clube': row['Equipa'],
+                                'Liga': safe_str(row.get('Liga'), '-'),
+                                'Idade': safe_int(row.get('Idade')),
+                                'Min': safe_int(row.get('Minutos jogados:')),
+                                'Índice': round(media, 1),
+                                **{k: round(v, 1) for k, v in idx_vals.items()},
+                                **sc_data
+                            })
+                    except:
+                        continue
+                
+                if ranking_data:
+                    df_resultado = pd.DataFrame(ranking_data)
+                    
+                    # Determinar coluna de ordenação
+                    if ordenar_por == '🎯 Índice Geral':
+                        sort_col = 'Índice'
+                    else:
+                        sort_col = ordenar_por.replace('📊 ', '').replace(' (índice)', '')
+                    
+                    if sort_col in df_resultado.columns:
+                        df_resultado = df_resultado.sort_values(sort_col, ascending=False)
+                    else:
+                        df_resultado = df_resultado.sort_values('Índice', ascending=False)
+                    
+                    df_resultado = df_resultado.head(100)
+                    df_resultado.insert(0, '#', range(1, len(df_resultado) + 1))
+                    
+                    # Configurar colunas para exibição
+                    column_config = {
+                        '#': st.column_config.NumberColumn(width='small'),
+                        'Índice': st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f"),
+                    }
+                    
+                    # Adicionar progress bars para índices
+                    for col in df_resultado.columns:
+                        if col in list(indices_cfg.keys()):
+                            column_config[col] = st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f")
+                    
+                    st.dataframe(
+                        df_resultado,
+                        width='stretch',
+                        height=600,
+                        hide_index=True,
+                        column_config=column_config
+                    )
+                else:
+                    st.warning("Não foi possível calcular índices para os jogadores filtrados")
+            
+            else:
+                # Ordenar por métrica específica
+                metrica_clean = ordenar_por
+                
+                if metrica_clean in df_rank.columns:
+                    df_rank[metrica_clean] = df_rank[metrica_clean].apply(safe_float)
+                    df_rank = df_rank.dropna(subset=[metrica_clean])
+                    df_rank = df_rank.sort_values(metrica_clean, ascending=False).head(100)
+                    
+                    # Colunas base
+                    cols_show = ['Jogador', 'Equipa', 'Liga', 'Idade', 'Minutos jogados:', metrica_clean]
+                    
+                    # Adicionar métricas relacionadas
+                    if 'Golos/90' in metrica_clean or 'esperados' in metrica_clean.lower():
+                        extras = ['Golos/90', 'Golos esperados/90', 'Remates/90', 'Remates à baliza, %']
+                    elif 'Assist' in metrica_clean:
+                        extras = ['Assistências/90', 'Assistências esperadas/90', 'Passes chave/90']
+                    elif 'Passes' in metrica_clean:
+                        extras = ['Passes/90', 'Passes certos, %', 'Passes progressivos/90']
+                    elif 'Dribles' in metrica_clean:
+                        extras = ['Dribles/90', 'Dribles com sucesso, %', 'Duelos ofensivos/90']
+                    elif 'Duelos' in metrica_clean:
+                        extras = ['Duelos/90', 'Duelos ganhos, %', 'Duelos defensivos/90']
+                    else:
+                        extras = []
+                    
+                    for e in extras:
+                        if e in df_rank.columns and e not in cols_show:
+                            cols_show.append(e)
+                    
+                    cols_show = [c for c in cols_show if c in df_rank.columns]
+                    
+                    df_resultado = df_rank[cols_show].copy()
+                    df_resultado.insert(0, '#', range(1, len(df_resultado) + 1))
+                    
+                    st.dataframe(df_resultado, width='stretch', height=600, hide_index=True)
+                else:
+                    st.warning(f"Métrica '{metrica_clean}' não encontrada nos dados")
+            
+            # Botão de exportar
+            if 'df_resultado' in locals():
+                st.download_button(
+                    "📥 Exportar Ranking (CSV)", 
+                    df_resultado.to_csv(index=False).encode('utf-8'), 
+                    f"ranking_{posicao_rank}_{liga_rank}.csv",
+                    key='download_ranking'
+                )
+        else:
+            st.warning("Nenhum jogador encontrado com os filtros aplicados. Tente ajustar os critérios.")
+    
+    # ===== TAB 7: SIMILARIDADE =====
+    with tab7:
+        st.markdown(create_section_title("🔍", "Busca por Similaridade"), unsafe_allow_html=True)
+        
+        st.markdown(f"""
+        <div style="background: {COLORS['card']}; border-radius: 8px; padding: 12px; margin-bottom: 16px; border: 1px solid {COLORS['border']};">
+            <span style="color: {COLORS['text_secondary']}; font-size: 13px;">
+                Encontre jogadores com perfil estatístico similar ao jogador selecionado.
+                O algoritmo compara percentis de métricas relevantes para a posição.
+            </span>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Seleção do jogador de referência
+        col_sim1, col_sim2 = st.columns(2)
+        
+        with col_sim1:
+            jogadores_ws_sim = sorted(wyscout['JogadorDisplay'].dropna().unique().tolist())
+            jogador_ref = st.selectbox("Jogador de Referência", jogadores_ws_sim, key='jogador_sim_ref')
+        
+        with col_sim2:
+            # Detectar posição do jogador
+            if jogador_ref:
+                row_ref = wyscout[wyscout['JogadorDisplay'] == jogador_ref].iloc[0]
+                pos_ref = get_posicao_categoria(row_ref.get('Posição', ''))
+                if pos_ref is None:
+                    pos_ref = 'Meia'
+            else:
+                pos_ref = 'Meia'
+            
+            categorias_sim = list(INDICES_CONFIG.keys())
+            idx_cat = categorias_sim.index(pos_ref) if pos_ref in categorias_sim else 0
+            categoria_sim = st.selectbox("Categoria de Posição", categorias_sim, index=idx_cat, key='cat_sim')
+        
+        # Filtros adicionais
+        col_sim3, col_sim4, col_sim5 = st.columns(3)
+        
+        with col_sim3:
+            apenas_mesma_pos = st.checkbox("Apenas mesma posição", value=True, key='mesma_pos_sim')
+        
+        with col_sim4:
+            idade_range = st.slider("Faixa de Idade", 16, 40, (18, 35), key='idade_sim')
+        
+        with col_sim5:
+            min_min_sim = st.number_input("Minutos Mín", min_value=0, max_value=5000, value=500, step=100, key='min_sim')
+        
+        if st.button("🔍 Buscar Similares", key='btn_sim'):
+            if jogador_ref:
+                row_ref = wyscout[wyscout['JogadorDisplay'] == jogador_ref].iloc[0]
+                
+                # Métricas para comparação baseadas na posição
+                indices_cfg = INDICES_CONFIG.get(categoria_sim, INDICES_CONFIG['Meia'])
+                metricas_sim = []
+                for metrics in indices_cfg.values():
+                    metricas_sim.extend(metrics)
+                metricas_sim = list(set(metricas_sim))  # Remover duplicatas
+                
+                # Calcular percentis do jogador de referência
+                perfil_ref = {}
+                for m in metricas_sim:
+                    if m in row_ref.index and m in wyscout.columns:
+                        val = safe_float(row_ref[m])
+                        if val is not None:
+                            perc = calculate_percentile(val, wyscout[m])
+                            if pd.notna(perc):
+                                perfil_ref[m] = float(perc)
+                
+                if not perfil_ref:
+                    st.warning("Não foi possível calcular o perfil do jogador de referência")
+                else:
+                    # Filtrar candidatos
+                    df_candidatos = wyscout.copy()
+                    
+                    if apenas_mesma_pos:
+                        df_candidatos = df_candidatos[df_candidatos['Posição'].apply(get_posicao_categoria) == categoria_sim]
+                    
+                    df_candidatos['Idade'] = df_candidatos['Idade'].apply(safe_float)
+                    df_candidatos = df_candidatos[(df_candidatos['Idade'] >= idade_range[0]) & (df_candidatos['Idade'] <= idade_range[1])]
+                    
+                    df_candidatos['Minutos jogados:'] = df_candidatos['Minutos jogados:'].apply(safe_float)
+                    df_candidatos = df_candidatos[df_candidatos['Minutos jogados:'] >= min_min_sim]
+                    
+                    # Excluir o próprio jogador
+                    df_candidatos = df_candidatos[df_candidatos['JogadorDisplay'] != jogador_ref]
+                    
+                    # Calcular similaridade
+                    similaridades = []
+                    
+                    for _, row in df_candidatos.iterrows():
+                        try:
+                            perfil_cand = {}
+                            for m in metricas_sim:
+                                if m in row.index and m in wyscout.columns:
+                                    val = safe_float(row[m])
+                                    if val is not None:
+                                        perc = calculate_percentile(val, wyscout[m])
+                                        if pd.notna(perc):
+                                            perfil_cand[m] = float(perc)
+                            
+                            # Calcular distância euclidiana
+                            metricas_comuns = set(perfil_ref.keys()) & set(perfil_cand.keys())
+                            if len(metricas_comuns) >= 5:  # Mínimo de métricas para comparar
+                                distancia = 0
+                                for m in metricas_comuns:
+                                    distancia += (perfil_ref[m] - perfil_cand[m]) ** 2
+                                distancia = np.sqrt(distancia / len(metricas_comuns))
+                                
+                                # Converter para similaridade (0-100)
+                                similaridade = max(0, 100 - distancia)
+                                
+                                similaridades.append({
+                                    'Jogador': row['Jogador'],
+                                    'Clube': row['Equipa'],
+                                    'Liga': row.get('Liga', '-'),
+                                    'Idade': safe_int(row.get('Idade')),
+                                    'Min': safe_int(row.get('Minutos jogados:')),
+                                    'Similaridade': round(similaridade, 1),
+                                    'Métricas': len(metricas_comuns)
+                                })
+                        except:
+                            continue
+                    
+                    if similaridades:
+                        df_sim = pd.DataFrame(similaridades)
+                        df_sim = df_sim.sort_values('Similaridade', ascending=False).head(20)
+                        df_sim.insert(0, '#', range(1, len(df_sim) + 1))
+                        
+                        # Info do jogador de referência
+                        st.markdown(f"""
+                        <div style="background: linear-gradient(135deg, {COLORS['accent']}, #b91c1c); border-radius: 8px; padding: 16px; margin: 16px 0;">
+                            <div style="color: rgba(255,255,255,0.7); font-size: 11px; letter-spacing: 1px;">JOGADOR DE REFERÊNCIA</div>
+                            <div style="color: white; font-size: 20px; font-weight: 700; margin-top: 4px;">{row_ref['Jogador']}</div>
+                            <div style="color: rgba(255,255,255,0.8); font-size: 13px; margin-top: 4px;">{row_ref['Equipa']} • {safe_int(row_ref.get('Idade'))} anos • {categoria_sim}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        st.markdown(f"**Top {len(df_sim)} jogadores mais similares**", unsafe_allow_html=True)
+                        
+                        st.dataframe(
+                            df_sim,
+                            width='stretch',
+                            height=500,
+                            hide_index=True,
+                            column_config={
+                                '#': st.column_config.NumberColumn(width='small'),
+                                'Similaridade': st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f%%"),
+                            }
+                        )
+                        
+                        # Comparar com o mais similar
+                        if len(df_sim) > 0:
+                            mais_similar = df_sim.iloc[0]['Jogador']
+                            row_similar = wyscout[wyscout['Jogador'] == mais_similar]
+                            
+                            if not row_similar.empty:
+                                row_similar = row_similar.iloc[0]
+                                
+                                st.markdown(create_section_title("📊", f"Comparação: {row_ref['Jogador']} vs {mais_similar}"), unsafe_allow_html=True)
+                                
+                                # Calcular índices para ambos
+                                indices_ref = {idx_name: calculate_index(row_ref, metrics, wyscout) for idx_name, metrics in indices_cfg.items()}
+                                indices_sim = {idx_name: calculate_index(row_similar, metrics, wyscout) for idx_name, metrics in indices_cfg.items()}
+                                
+                                col_radar1, col_radar2 = st.columns(2)
+                                
+                                with col_radar1:
+                                    st.markdown(f"**{row_ref['Jogador']}**")
+                                    st.plotly_chart(create_wyscout_radar(indices_ref), width='stretch', config={'displayModeBar': False}, key="radar_ref_sim")
+                                
+                                with col_radar2:
+                                    st.markdown(f"**{mais_similar}**")
+                                    st.plotly_chart(create_wyscout_radar(indices_sim), width='stretch', config={'displayModeBar': False}, key="radar_sim_sim")
+                    else:
+                        st.warning("Nenhum jogador similar encontrado com os critérios especificados")
+            else:
+                st.warning("Selecione um jogador de referência")
 
 
 if __name__ == "__main__":
