@@ -483,65 +483,301 @@ st.markdown(f"""
 # ÍNDICES POR POSIÇÃO
 # ============================================
 
+# ============================================
+# ÍNDICES COMPOSTOS POR POSIÇÃO
+# ============================================
+# Metodologia baseada em:
+# - xG/xA (Expected Goals/Assists) - StatsBomb/Opta
+# - VAEP (Valuing Actions by Estimating Probabilities) - KU Leuven
+# - Packing/Progressive actions - Impect
+# - Player Contribution Ratings - Soccerment
+# - Physical Performance Metrics - SkillCorner integration
+#
+# Estrutura: Cada índice combina métricas de VOLUME e EFICIÊNCIA
+# Normalização: Percentil dentro da posição (0-100)
+# ============================================
+
 INDICES_CONFIG = {
     'Atacante': {
-        'Finalização': ['Golos/90', 'Golos esperados/90', 'Remates/90', 'Remates à baliza, %', 'Toques na área/90'],
-        '1x1 Ofensivo': ['Dribles/90', 'Dribles com sucesso, %', 'Duelos ofensivos/90', 'Duelos ofensivos ganhos, %'],
-        'Jogo Aéreo': ['Duelos aérios/90', 'Duelos aéreos ganhos, %', 'Golos de cabeça/90'],
-        'Movimentação': ['Corridas progressivas/90', 'Receção de passes em profundidade/90', 'Acelerações/90'],
-        'Participação': ['Passes recebidos/90', 'Toques na área/90', 'Faltas sofridas/90'],
+        # OUTPUT: Métricas de produção final
+        'Finalização': [
+            'Golos/90', 'Golos esperados/90', 'Golos sem ser por penálti/90',
+            'Remates/90', 'Remates à baliza, %', 'Golos marcados, %',
+            'Toques na área/90', 'Golos de cabeça/90'
+        ],
+        # PROCESSO: Capacidade de criar para si mesmo
+        '1x1 Ofensivo': [
+            'Dribles/90', 'Dribles com sucesso, %',
+            'Duelos ofensivos/90', 'Duelos ofensivos ganhos, %',
+            'Acelerações/90', 'Faltas sofridas/90'
+        ],
+        # JOGO AÉREO: Dominância aérea ofensiva
+        'Jogo Aéreo': [
+            'Duelos aérios/90', 'Duelos aéreos ganhos, %',
+            'Golos de cabeça/90', 'Cruzamentos em profundidade recebidos/90'
+        ],
+        # MOVIMENTAÇÃO: Qualidade de movimentos sem bola
+        'Movimentação': [
+            'Corridas progressivas/90', 'Receção de passes em profundidade/90',
+            'Acelerações/90', 'Passes longos recebidos/90',
+            'Toques na área/90'
+        ],
+        # LINK-UP: Participação na construção
+        'Link-up Play': [
+            'Passes recebidos/90', 'Passes/90', 'Passes certos, %',
+            'Assistências/90', 'Assistências esperadas/90',
+            'Segundas assistências/90', 'Passes chave/90'
+        ],
+        # PRESSING: Contribuição defensiva (contra-pressão)
+        'Pressing': [
+            'Ações defensivas com êxito/90', 'Duelos/90', 'Duelos ganhos, %',
+            'Interseções/90'
+        ],
     },
     'Extremo': {
-        'Finalização': ['Golos/90', 'Golos esperados/90', 'Remates/90', 'Toques na área/90'],
-        '1x1 Ofensivo': ['Dribles/90', 'Dribles com sucesso, %', 'Duelos ofensivos/90', 'Duelos ofensivos ganhos, %'],
-        'Criação': ['Assistências/90', 'Assistências esperadas/90', 'Passes chave/90', 'Cruzamentos/90', 'Cruzamentos certos, %'],
-        'Progressão': ['Corridas progressivas/90', 'Passes progressivos/90', 'Acelerações/90'],
-        'Cruzamentos': ['Cruzamentos/90', 'Cruzamentos certos, %', 'Cruzamentos para a área de baliza/90'],
+        # OUTPUT: Gols e assistências
+        'Finalização': [
+            'Golos/90', 'Golos esperados/90', 'Remates/90',
+            'Remates à baliza, %', 'Toques na área/90', 'Golos marcados, %'
+        ],
+        # CRIAÇÃO: Geração de chances para terceiros
+        'Criação': [
+            'Assistências/90', 'Assistências esperadas/90',
+            'Passes chave/90', 'Passes inteligentes/90',
+            'Segundas assistências/90', 'Terceiras assistências/90',
+            'Passes para a área de penálti/90'
+        ],
+        # 1x1: Capacidade de drible e superação
+        '1x1 Ofensivo': [
+            'Dribles/90', 'Dribles com sucesso, %',
+            'Duelos ofensivos/90', 'Duelos ofensivos ganhos, %',
+            'Faltas sofridas/90', 'Acelerações/90'
+        ],
+        # PROGRESSÃO: Capacidade de transportar jogo
+        'Progressão': [
+            'Corridas progressivas/90', 'Passes progressivos/90',
+            'Passes progressivos certos, %', 'Acelerações/90',
+            'Passes para terço final/90', 'Passes certos para terço final, %'
+        ],
+        # CRUZAMENTOS: Qualidade de cruzamentos
+        'Cruzamentos': [
+            'Cruzamentos/90', 'Cruzamentos certos, %',
+            'Cruzamentos para a área de baliza/90',
+            'Cruzamentos do flanco esquerdo/90', 'Cruzamentos precisos do flanco esquerdo, %',
+            'Cruzamentos do flanco direito/90', 'Cruzamentos precisos do flanco direito, %'
+        ],
+        # TRABALHO DEFENSIVO: Contribuição sem bola
+        'Trabalho Defensivo': [
+            'Ações defensivas com êxito/90', 'Duelos defensivos/90',
+            'Duelos defensivos ganhos, %', 'Interseções/90'
+        ],
     },
     'Meia': {
-        'Criação': ['Assistências/90', 'Assistências esperadas/90', 'Passes chave/90', 'Passes inteligentes/90'],
-        'Progressão': ['Passes progressivos/90', 'Corridas progressivas/90', 'Passes para terço final/90'],
-        'Passe': ['Passes/90', 'Passes certos, %', 'Passes longos/90', 'Passes longos certos, %'],
-        'Finalização': ['Golos/90', 'Golos esperados/90', 'Remates/90'],
-        'Duelos': ['Duelos/90', 'Duelos ganhos, %', 'Duelos defensivos/90'],
+        # CRIAÇÃO: Motor criativo da equipe
+        'Criação': [
+            'Assistências/90', 'Assistências esperadas/90',
+            'Passes chave/90', 'Passes inteligentes/90', 'Passes inteligentes certos, %',
+            'Segundas assistências/90', 'Terceiras assistências/90',
+            'Passes para a área de penálti/90', 'Passes precisos para a área de penálti, %'
+        ],
+        # PROGRESSÃO: Capacidade de avançar o jogo
+        'Progressão': [
+            'Passes progressivos/90', 'Passes progressivos certos, %',
+            'Corridas progressivas/90', 'Passes para terço final/90',
+            'Passes certos para terço final, %', 'Passes em profundidade/90',
+            'Passes em profundidade certos, %'
+        ],
+        # QUALIDADE DE PASSE: Técnica e precisão
+        'Qualidade de Passe': [
+            'Passes/90', 'Passes certos, %',
+            'Passes longos/90', 'Passes longos certos, %',
+            'Passes para a frente/90', 'Passes para a frente certos, %',
+            'Comprimento médio de passes, m'
+        ],
+        # FINALIZAÇÃO: Contribuição de gols
+        'Finalização': [
+            'Golos/90', 'Golos esperados/90', 'Remates/90',
+            'Remates à baliza, %', 'Toques na área/90'
+        ],
+        # DUELOS: Capacidade física
+        'Duelos': [
+            'Duelos/90', 'Duelos ganhos, %',
+            'Duelos ofensivos/90', 'Duelos ofensivos ganhos, %',
+            'Dribles/90', 'Dribles com sucesso, %'
+        ],
+        # RECUPERAÇÃO: Contribuição defensiva
+        'Recuperação': [
+            'Ações defensivas com êxito/90', 'Duelos defensivos/90',
+            'Duelos defensivos ganhos, %', 'Interseções/90',
+            'Cortes/90'
+        ],
     },
     'Volante': {
-        'Recuperação': ['Ações defensivas com êxito/90', 'Interseções/90', 'Duelos defensivos/90', 'Duelos defensivos ganhos, %'],
-        'Passe': ['Passes/90', 'Passes certos, %', 'Passes longos/90', 'Passes longos certos, %'],
-        'Progressão': ['Passes progressivos/90', 'Passes para terço final/90', 'Corridas progressivas/90'],
-        'Duelos': ['Duelos/90', 'Duelos ganhos, %', 'Duelos aérios/90', 'Duelos aéreos ganhos, %'],
-        'Disciplina': ['Faltas/90', 'Cartões amarelos/90'],
+        # RECUPERAÇÃO: Core da posição - interceptar e recuperar
+        'Recuperação': [
+            'Ações defensivas com êxito/90', 'Interseções/90',
+            'Interceções ajust. à posse', 'Duelos defensivos/90',
+            'Duelos defensivos ganhos, %', 'Cortes/90',
+            'Cortes de carrinho ajust. à posse', 'Remates intercetados/90'
+        ],
+        # DUELOS: Dominância física
+        'Duelos': [
+            'Duelos/90', 'Duelos ganhos, %',
+            'Duelos aérios/90', 'Duelos aéreos ganhos, %',
+            'Duelos defensivos/90', 'Duelos defensivos ganhos, %'
+        ],
+        # CONSTRUÇÃO: Capacidade de iniciar jogadas
+        'Construção': [
+            'Passes/90', 'Passes certos, %',
+            'Passes longos/90', 'Passes longos certos, %',
+            'Passes para a frente/90', 'Passes para a frente certos, %'
+        ],
+        # PROGRESSÃO: Capacidade de avançar o jogo
+        'Progressão': [
+            'Passes progressivos/90', 'Passes progressivos certos, %',
+            'Passes para terço final/90', 'Passes certos para terço final, %',
+            'Corridas progressivas/90', 'Passes em profundidade/90'
+        ],
+        # COBERTURA: Posicionamento e cobertura de espaços
+        'Cobertura': [
+            'Ações defensivas com êxito/90', 'Interseções/90',
+            'Cortes/90', 'Remates intercetados/90'
+        ],
+        # DISCIPLINA: Controle emocional (invertido - menos é melhor)
+        'Disciplina': [
+            'Faltas/90', 'Cartões amarelos/90', 'Cartões vermelhos/90'
+        ],
     },
     'Lateral': {
-        'Apoio Ofensivo': ['Cruzamentos/90', 'Cruzamentos certos, %', 'Passes para terço final/90', 'Toques na área/90'],
-        'Progressão': ['Corridas progressivas/90', 'Passes progressivos/90', 'Acelerações/90'],
-        '1x1 Ofensivo': ['Dribles/90', 'Dribles com sucesso, %', 'Duelos ofensivos/90'],
-        'Defesa': ['Duelos defensivos/90', 'Duelos defensivos ganhos, %', 'Interseções/90', 'Cortes/90'],
-        'Duelos': ['Duelos/90', 'Duelos ganhos, %'],
+        # APOIO OFENSIVO: Contribuição no ataque
+        'Apoio Ofensivo': [
+            'Cruzamentos/90', 'Cruzamentos certos, %',
+            'Cruzamentos para a área de baliza/90',
+            'Passes para terço final/90', 'Passes certos para terço final, %',
+            'Toques na área/90', 'Passes para a área de penálti/90'
+        ],
+        # PROGRESSÃO: Capacidade de transportar jogo
+        'Progressão': [
+            'Corridas progressivas/90', 'Passes progressivos/90',
+            'Passes progressivos certos, %', 'Acelerações/90',
+            'Passes em profundidade/90'
+        ],
+        # 1x1 OFENSIVO: Capacidade de superar adversário
+        '1x1 Ofensivo': [
+            'Dribles/90', 'Dribles com sucesso, %',
+            'Duelos ofensivos/90', 'Duelos ofensivos ganhos, %',
+            'Faltas sofridas/90'
+        ],
+        # DEFESA: Core defensivo da posição
+        'Defesa': [
+            'Duelos defensivos/90', 'Duelos defensivos ganhos, %',
+            'Interseções/90', 'Cortes/90',
+            'Ações defensivas com êxito/90', 'Remates intercetados/90'
+        ],
+        # DUELOS TOTAIS: Dominância em duelos
+        'Duelos': [
+            'Duelos/90', 'Duelos ganhos, %',
+            'Duelos aérios/90', 'Duelos aéreos ganhos, %'
+        ],
+        # CRIAÇÃO: Assistências e passes chave
+        'Criação': [
+            'Assistências/90', 'Assistências esperadas/90',
+            'Passes chave/90', 'Segundas assistências/90'
+        ],
     },
     'Zagueiro': {
-        'Duelos Defensivos': ['Duelos defensivos/90', 'Duelos defensivos ganhos, %', 'Cortes/90'],
-        'Jogo Aéreo': ['Duelos aérios/90', 'Duelos aéreos ganhos, %'],
-        'Passe': ['Passes/90', 'Passes certos, %', 'Passes longos/90', 'Passes longos certos, %'],
-        'Progressão': ['Passes progressivos/90', 'Passes para terço final/90'],
-        'Interceções': ['Interseções/90', 'Remates intercetados/90'],
+        # DUELOS DEFENSIVOS: Core da posição
+        'Duelos Defensivos': [
+            'Duelos defensivos/90', 'Duelos defensivos ganhos, %',
+            'Cortes/90', 'Cortes de carrinho ajust. à posse',
+            'Ações defensivas com êxito/90'
+        ],
+        # JOGO AÉREO: Dominância aérea
+        'Jogo Aéreo': [
+            'Duelos aérios/90', 'Duelos aéreos ganhos, %',
+            'Golos de cabeça/90'
+        ],
+        # INTERCEÇÕES: Leitura de jogo
+        'Interceções': [
+            'Interseções/90', 'Interceções ajust. à posse',
+            'Remates intercetados/90', 'Cortes/90'
+        ],
+        # CONSTRUÇÃO: Qualidade de passe
+        'Construção': [
+            'Passes/90', 'Passes certos, %',
+            'Passes longos/90', 'Passes longos certos, %',
+            'Passes para a frente/90', 'Passes para a frente certos, %',
+            'Comprimento médio de passes longos, m'
+        ],
+        # PROGRESSÃO: Capacidade de avançar jogo desde trás
+        'Progressão': [
+            'Passes progressivos/90', 'Passes progressivos certos, %',
+            'Passes para terço final/90', 'Corridas progressivas/90',
+            'Passes em profundidade/90'
+        ],
+        # DISCIPLINA: Controle (invertido)
+        'Disciplina': [
+            'Faltas/90', 'Cartões amarelos/90', 'Cartões vermelhos/90'
+        ],
     },
     'Goleiro': {
-        'Defesas': ['Defesas, %', 'Golos sofridos/90', 'Remates sofridos/90'],
-        'xG Prevented': ['Golos sofridos esperados/90', 'Golos expectáveis defendidos por 90´'],
-        'Jogo Aéreo': ['Duelos aérios/90.1', 'Saídas/90'],
-        'Jogo com Pés': ['Passes para trás recebidos pelo guarda-redes/90', 'Passes longos certos, %'],
+        # DEFESAS: Capacidade de evitar gols
+        'Defesas': [
+            'Defesas, %', 'Golos sofridos/90', 'Remates sofridos/90'
+        ],
+        # xG PREVENTED: Métrica avançada de performance
+        'xG Prevented': [
+            'Golos sofridos esperados/90', 'Golos expectáveis defendidos por 90´'
+        ],
+        # JOGO AÉREO: Dominância na área
+        'Jogo Aéreo': [
+            'Duelos aérios/90.1', 'Saídas/90'
+        ],
+        # JOGO COM PÉS: Construção desde trás
+        'Jogo com Pés': [
+            'Passes para trás recebidos pelo guarda-redes/90',
+            'Passes longos certos, %'
+        ],
+        # CLEAN SHEETS: Jogos sem sofrer
+        'Clean Sheets': [
+            'Jogos sem sofrer golos'
+        ],
     },
 }
 
+# Mapeamento de posições WyScout para categorias
 POSICAO_MAP = {
+    # Atacantes
     'CF': 'Atacante', 'SS': 'Atacante',
-    'LW': 'Extremo', 'RW': 'Extremo', 'LWF': 'Extremo', 'RWF': 'Extremo', 'LAMF': 'Extremo', 'RAMF': 'Extremo',
+    # Extremos/Wingers
+    'LW': 'Extremo', 'RW': 'Extremo', 'LWF': 'Extremo', 'RWF': 'Extremo', 
+    'LAMF': 'Extremo', 'RAMF': 'Extremo',
+    # Meias
     'AMF': 'Meia', 'LCMF': 'Meia', 'RCMF': 'Meia', 'CMF': 'Meia',
+    # Volantes
     'DMF': 'Volante', 'LDMF': 'Volante', 'RDMF': 'Volante',
+    # Laterais
     'LB': 'Lateral', 'RB': 'Lateral', 'LWB': 'Lateral', 'RWB': 'Lateral',
+    'LB5': 'Lateral', 'RB5': 'Lateral',
+    # Zagueiros
     'CB': 'Zagueiro', 'LCB': 'Zagueiro', 'RCB': 'Zagueiro',
+    'LCB3': 'Zagueiro', 'RCB3': 'Zagueiro', 'CCB3': 'Zagueiro',
+    # Goleiros
     'GK': 'Goleiro',
+}
+
+# ============================================
+# ÍNDICES SKILLCORNER - Perfis de jogo físico
+# ============================================
+# Estes índices são pré-calculados pelo SkillCorner e medem
+# aspectos físicos e táticos do jogo sem bola
+SKILLCORNER_INDICES = {
+    'Atacante': ['Direct striker index', 'Link up striker index'],
+    'Extremo': ['Inverted winger index', 'Wide winger index'],
+    'Meia': ['Dynamic number 8 index', 'Box to box midfielder index'],
+    'Volante': ['Number 6 index', 'Box to box midfielder index'],
+    'Lateral': ['Intense full back index', 'Technical full back index'],
+    'Zagueiro': ['Physical & aggressive defender index', 'Ball playing central defender index'],
 }
 
 # Times da Série B 2025
@@ -768,17 +1004,60 @@ def get_player_photo(p, ogol_data=None, tm_data=None):
 
 @st.cache_data
 def create_skillcorner_lookup(skillcorner_df):
-    """Cria lookup dict do SkillCorner para busca O(1)"""
+    """Cria lookup dict do SkillCorner para busca O(1)
+    
+    Inclui todos os índices pré-calculados do SkillCorner:
+    - Direct/Link up striker index (Atacantes)
+    - Inverted/Wide winger index (Extremos)
+    - Dynamic 8/Box to box midfielder index (Meias)
+    - Number 6 index (Volantes)
+    - Intense/Technical full back index (Laterais)
+    - Physical/Ball playing CB index (Zagueiros)
+    """
+    # Lista de todos os índices SkillCorner
+    all_sc_indices = [
+        'Direct striker index', 'Link up striker index',
+        'Inverted winger index', 'Wide winger index',
+        'Dynamic number 8 index', 'Box to box midfielder index',
+        'Number 6 index',
+        'Intense full back index', 'Technical full back index',
+        'Physical & aggressive defender index', 'Ball playing central defender index'
+    ]
+    
+    # Métricas físicas relevantes
+    physical_metrics = [
+        'sprint_count_per_90', 'hi_count_per_90', 'distance_per_90',
+        'avg_psv99', 'avg_top_5_psv99',  # Peak Sprint Velocity
+        'count_pressing_engagements_per_30_otip',
+        'count_runs_in_behind_per_30_tip'
+    ]
+    
     sc_lookup = {}
     for _, sc_row in skillcorner_df.iterrows():
         nome_norm = normalize_name(str(sc_row.get('player_name', '')))
         if nome_norm and nome_norm not in sc_lookup:
             sc_data_temp = {}
-            for sc_idx in ['Direct striker index', 'Ball retention index', 'Buildup index']:
+            
+            # Adicionar índices compostos
+            for sc_idx in all_sc_indices:
                 if sc_idx in sc_row.index:
                     val = safe_float(sc_row[sc_idx])
                     if val is not None:
-                        sc_data_temp[sc_idx.replace(' index', '').replace('striker ', '')] = round(val, 1)
+                        # Simplificar nome do índice
+                        short_name = sc_idx.replace(' index', '').replace(' midfielder', '').replace('central ', '')
+                        sc_data_temp[short_name] = round(val, 1)
+            
+            # Adicionar métricas físicas
+            for pm in physical_metrics:
+                if pm in sc_row.index:
+                    val = safe_float(sc_row[pm])
+                    if val is not None:
+                        sc_data_temp[pm] = round(val, 1)
+            
+            # Adicionar posição do SkillCorner
+            if 'position_group' in sc_row.index:
+                sc_data_temp['sc_position'] = str(sc_row['position_group'])
+            
             if sc_data_temp:
                 sc_lookup[nome_norm] = sc_data_temp
     return sc_lookup
@@ -2419,8 +2698,18 @@ def main():
                                     'Min': safe_int(row.get('Minutos jogados:')),
                                     'Índice': round(media, 1),
                                     **{k: round(v, 1) for k, v in idx_vals.items()},
-                                    **sc_data
                                 })
+                                
+                                # Adicionar índices SkillCorner relevantes para a posição
+                                nome_jogador = normalize_name(row['Jogador'])
+                                sc_data = sc_lookup.get(nome_jogador, {})
+                                
+                                if sc_data and posicao_calc in SKILLCORNER_INDICES:
+                                    relevant_sc_indices = SKILLCORNER_INDICES[posicao_calc]
+                                    for sc_idx in relevant_sc_indices:
+                                        short_name = sc_idx.replace(' index', '').replace(' midfielder', '').replace('central ', '')
+                                        if short_name in sc_data:
+                                            ranking_data[-1][f'SC: {short_name}'] = sc_data[short_name]
                         except:
                             continue
                 
@@ -2447,9 +2736,12 @@ def main():
                         'Índice': st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f"),
                     }
                     
-                    # Adicionar progress bars para índices
+                    # Adicionar progress bars para índices WyScout
                     for col in df_resultado.columns:
                         if col in list(indices_cfg.keys()):
+                            column_config[col] = st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f")
+                        # Adicionar progress bars para índices SkillCorner (prefixo SC:)
+                        elif col.startswith('SC:'):
                             column_config[col] = st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f")
                     
                     st.dataframe(
