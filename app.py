@@ -123,6 +123,12 @@ def get_flag(country):
     country_str = str(country).split(',')[0].strip()
     return COUNTRY_FLAGS.get(country_str, '🏳️')
 
+def get_primary_nationality(nationality):
+    """Retorna apenas a primeira nacionalidade (ex: 'Brazil, Senegal' -> 'Brazil')"""
+    if pd.isna(nationality):
+        return None
+    return str(nationality).split(',')[0].strip()
+
 # ============================================
 # ESCUDOS DOS CLUBES (URLs)
 # ============================================
@@ -2549,7 +2555,7 @@ def main():
                 clube_rank = 'Todos'
         
         with col_f4:
-            # Nacionalidades
+            # Nacionalidades - usa apenas a primeira de cada (ex: "Brazil, Senegal" -> "Brazil")
             nac_col = None
             for col_name in ['Passaporte', 'País de nacionalidade', 'Nacionalidade', 'Nationality']:
                 if col_name in wyscout.columns:
@@ -2557,7 +2563,9 @@ def main():
                     break
             
             if nac_col:
-                nacionalidades = sorted([str(n) for n in wyscout[nac_col].dropna().unique() if str(n) not in ('nan', '')])
+                # Extrair apenas a primeira nacionalidade de cada jogador
+                nacionalidades_primarias = wyscout[nac_col].apply(get_primary_nationality).dropna().unique()
+                nacionalidades = sorted([str(n) for n in nacionalidades_primarias if str(n) not in ('nan', '', 'None')])
                 nac_rank = st.selectbox("🌍 Nacionalidade", ['Todas'] + nacionalidades, key='nac_ranking')
             else:
                 nac_rank = 'Todas'
@@ -2628,9 +2636,9 @@ def main():
         if clube_rank != 'Todos' and equipa_col and equipa_col in df_rank.columns:
             df_rank = df_rank[df_rank[equipa_col] == clube_rank]
         
-        # Filtro de nacionalidade
+        # Filtro de nacionalidade (compara com a primeira nacionalidade)
         if nac_rank != 'Todas' and nac_col and nac_col in df_rank.columns:
-            df_rank = df_rank[df_rank[nac_col].astype(str).str.contains(nac_rank, case=False, na=False)]
+            df_rank = df_rank[df_rank[nac_col].apply(get_primary_nationality) == nac_rank]
         
         # Filtro de idade
         if 'Idade' in df_rank.columns:
