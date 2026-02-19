@@ -751,8 +751,20 @@ INDICES_CONFIG = {
     },
 }
 
-# Mapeamento de posições WyScout para categorias
+# Mapeamento de posições WyScout para categorias de índices
+# Suporta tanto formato antigo (siglas) quanto novo (português)
 POSICAO_MAP = {
+    # ===== FORMATO NOVO (Português) =====
+    'Atacante': 'Atacante',
+    'Extremo': 'Extremo',
+    'Meia': 'Meia',
+    'Volante': 'Volante',
+    'Lateral direito': 'Lateral',
+    'Lateral esquerdo': 'Lateral',
+    'Zagueiro': 'Zagueiro',
+    'Goleiro': 'Goleiro',
+    
+    # ===== FORMATO ANTIGO (Siglas - retrocompatibilidade) =====
     # Atacantes
     'CF': 'Atacante', 'SS': 'Atacante',
     # Extremos/Wingers
@@ -772,6 +784,12 @@ POSICAO_MAP = {
     'GK': 'Goleiro',
 }
 
+# Lista de posições para filtros (formato novo)
+POSICOES_DISPLAY = [
+    'Atacante', 'Extremo', 'Meia', 'Volante', 
+    'Lateral direito', 'Lateral esquerdo', 'Zagueiro', 'Goleiro'
+]
+
 # ============================================
 # ÍNDICES SKILLCORNER - Perfis de jogo físico
 # ============================================
@@ -783,6 +801,8 @@ SKILLCORNER_INDICES = {
     'Meia': ['Dynamic number 8 index', 'Box to box midfielder index'],
     'Volante': ['Number 6 index', 'Box to box midfielder index'],
     'Lateral': ['Intense full back index', 'Technical full back index'],
+    'Lateral direito': ['Intense full back index', 'Technical full back index'],
+    'Lateral esquerdo': ['Intense full back index', 'Technical full back index'],
     'Zagueiro': ['Physical & aggressive defender index', 'Ball playing central defender index'],
 }
 
@@ -797,6 +817,22 @@ SERIE_B_TEAMS = [
 # ============================================
 # FUNÇÕES AUXILIARES DE CONVERSÃO
 # ============================================
+
+def get_posicao_categoria(posicao):
+    """Converte posição WyScout para categoria de índices (INDICES_CONFIG)
+    
+    Ex: 'Lateral direito' -> 'Lateral'
+        'CF' -> 'Atacante'
+        'Atacante' -> 'Atacante'
+    """
+    if pd.isna(posicao):
+        return 'Meia'  # Default
+    posicao_str = str(posicao).strip()
+    # Se já é uma categoria válida no INDICES_CONFIG, retorna diretamente
+    if posicao_str in INDICES_CONFIG:
+        return posicao_str
+    # Caso contrário, usa o mapeamento
+    return POSICAO_MAP.get(posicao_str, 'Meia')
 
 def safe_float(val, default=None):
     """Converte valor para float de forma segura (Google Sheets retorna strings)"""
@@ -2603,7 +2639,8 @@ def main():
         with col_f10:
             # Opções de ordenação baseadas na posição
             if posicao_rank != 'Todas':
-                indices_posicao = INDICES_CONFIG.get(posicao_rank, {})
+                posicao_cat = get_posicao_categoria(posicao_rank)
+                indices_posicao = INDICES_CONFIG.get(posicao_cat, {})
                 
                 # Métricas específicas por posição
                 metricas_especificas = []
@@ -2675,7 +2712,7 @@ def main():
                 if posicao_rank == 'Todas':
                     posicao_calc = 'Meia'  # Default para cálculo
                 else:
-                    posicao_calc = posicao_rank
+                    posicao_calc = get_posicao_categoria(posicao_rank)
                 
                 indices_cfg = INDICES_CONFIG.get(posicao_calc, INDICES_CONFIG['Meia'])
                 ranking_data = []
