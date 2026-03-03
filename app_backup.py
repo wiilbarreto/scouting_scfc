@@ -1337,8 +1337,24 @@ def calculate_percentile(value, series):
 
 
 def calculate_index(player_row, metrics, df_all):
-    # Delega para weighted - retrocompativel
+    # Delega para weighted - retrocompatível
     return calculate_weighted_index(player_row, metrics, df_all, position=None)
+    percentiles = []
+    for metric in metrics:
+        try:
+            if metric in player_row.index and metric in df_all.columns:
+                val = safe_float(player_row[metric])
+                if val is not None:
+                    perc = calculate_percentile(val, df_all[metric])
+                    if pd.notna(perc):
+                        if 'Faltas/90' in metric or 'Cartões' in metric or 'sofridos' in metric.lower():
+                            perc = 100 - perc
+                        percentiles.append(float(perc))
+        except:
+            continue
+    if percentiles:
+        return float(np.nanmean(percentiles))
+    return 50.0
 
 
 def get_color(value):
@@ -1999,29 +2015,30 @@ def main():
                     st.plotly_chart(create_wyscout_radar(indices_values), width='stretch', config={'displayModeBar': False}, key="radar_idx_t1")
                 
                 with col2:
+                    # Métricas individuais mais importantes para a posição
                     st.markdown(create_section_title("📈", "Métricas Principais"), unsafe_allow_html=True)
+                    
+                    # Pegar as métricas mais relevantes
                     metrics_perc = calculate_metric_percentiles(ws_match, posicao_categoria, wyscout_percentil_t1, top_n=12)
-                    if metrics_perc:
-                        st.plotly_chart(create_bar_chart(metrics_perc, "Top Métricas (Percentil)"), width='stretch', config={'displayModeBar': False}, key="bar_metrics_t1")
                 
                 # RANKING DA POSIÇÃO
                 st.markdown(create_section_title("🏆", f"Ranking de {posicao_categoria}s"), unsafe_allow_html=True)
                 
                 # Calcular índice médio para todos da posição
                 df_ranking_t1 = rank_players_weighted(
-                    wyscout_pos, posicao_categoria, wyscout_percentil_t1,
-                    indices_config=indices, min_minutes=0, include_indices=False
+                wyscout_pos, posicao_categoria, wyscout_percentil_t1,
+                indices_config=indices, min_minutes=0, include_indices=False
                 )
-                ranking_data = []
-                if len(df_ranking_t1) > 0:
-                    for _, row in df_ranking_t1.head(20).iterrows():
-                        ranking_data.append({
-                            'Jogador': row['Jogador'],
-                            'Clube': row['Equipa'],
-                            'Idade': safe_int(row.get('Idade')),
-                            'Min': safe_int(row.get('Minutos jogados:')),
-                            'Índice Médio': row['Score']
-                        })
+                    ranking_data = []
+                    if len(df_ranking_t1) > 0:
+                        for _, row in df_ranking_t1.head(20).iterrows():
+                            ranking_data.append({
+                                'Jogador': row['Jogador'],
+                                'Clube': row['Equipa'],
+                                'Idade': safe_int(row.get('Idade')),
+                                'Min': safe_int(row.get('Minutos jogados:')),
+                                'Índice Médio': row['Score']
+                            })
                 
                 if ranking_data:
                     ranking_df = pd.DataFrame(ranking_data)
@@ -2752,87 +2769,73 @@ def main():
                 df_rank_limited = df_rank.head(500)
                 
                 with st.spinner(f'Calculando ranking ponderado para {len(df_rank_limited)} jogadores...'):
-                    df_ranked = rank_players_weighted(
-                        df_rank_limited,
-                        posicao_calc,
-                        wyscout_percentil,
-                        indices_config=indices_cfg,
-                        min_minutes=0,
-                        include_indices=True
-                    )
+    df_ranked = rank_players_weighted(
+        df_rank_limited,
+        posicao_calc,
+        wyscout_percentil,
+        indices_config=indices_cfg,
+        min_minutes=0,
+        include_indices=True
+    )
 
-                if len(df_ranked) > 0:
-                    sc_lookup = create_skillcorner_lookup(skillcorner)
+if len(df_ranked) > 0:
+    # Montar df_resultado
+    sc_lookup = create_skillcorner_lookup(skillcorner)
 
-                    ranking_data = []
-                    for _, row in df_ranked.iterrows():
-                        entry = {
-                            'Jogador': row['Jogador'],
-                            'Clube': row.get('Equipa', row.get('Team', '-')),
-                            'Idade': safe_int(row.get('Idade')),
-                            'Min': safe_int(row.get('Minutos jogados:')),
-                            'Score': row['Score'],
-                        }
-                        for idx_name in indices_cfg.keys():
-                            if idx_name in row.index and pd.notna(row[idx_name]):
-                                entry[idx_name] = row[idx_name]
+    ranking_data = []
+    for _, row in df_ranked.iterrows():
+        entry = {
+            'Jogador': row['Jogador'],
+            'Clube': row.get('Equipa', row.get('Team', '-')),
+            'Idade': safe_int(row.get('Idade')),
+            'Min': safe_int(row.get('Minutos jogados:')),
+            'Score': row['Score'],
+        }
+        # Indices compostos (já calculados por rank_players_weighted)
+        for idx_name in indices_cfg.keys():
+            if idx_name in row.index and pd.notna(row[idx_name]):
+                entry[idx_name] = row[idx_name]
 
-                        nome_jogador = normalize_name(row['Jogador'])
-                        sc_data = sc_lookup.get(nome_jogador, {})
-                        if sc_data and posicao_calc in SKILLCORNER_INDICES:
-                            for sc_idx in SKILLCORNER_INDICES[posicao_calc]:
-                                short_name = sc_idx.replace(' index', '').replace(' midfielder', '').replace('central ', '')
-                                if short_name in sc_data:
-                                    entry[f'SC: {short_name}'] = sc_data[short_name]
+        # SkillCorner
+        nome_jogador = normalize_name(row['Jogador'])
+        sc_data = sc_lookup.get(nome_jogador, {})
+        if sc_data and posicao_calc in SKILLCORNER_INDICES:
+            for sc_idx in SKILLCORNER_INDICES[posicao_calc]:
+                short_name = sc_idx.replace(' index', '').replace(' midfielder', '').replace('central ', '')
+                if short_name in sc_data:
+                    entry[f'SC: {short_name}'] = sc_data[short_name]
 
-                        ranking_data.append(entry)
+        ranking_data.append(entry)
 
-                    if ranking_data:
-                        df_resultado = pd.DataFrame(ranking_data)
+    if ranking_data:
+        df_resultado = pd.DataFrame(ranking_data)
 
-                        if ordenar_por == '🎯 Índice Geral':
-                            sort_col = 'Score'
-                        else:
-                            sort_col = ordenar_por.replace('📊 ', '').replace(' (índice)', '')
+        # Ordenação
+        if ordenar_por == '🎯 Índice Geral':
+            sort_col = 'Score'
+        else:
+            sort_col = ordenar_por.replace('📊 ', '').replace(' (índice)', '')
 
-                        if sort_col in df_resultado.columns:
-                            df_resultado = df_resultado.sort_values(sort_col, ascending=False)
-                        else:
-                            df_resultado = df_resultado.sort_values('Score', ascending=False)
+        if sort_col in df_resultado.columns:
+            df_resultado = df_resultado.sort_values(sort_col, ascending=False)
+        else:
+            df_resultado = df_resultado.sort_values('Score', ascending=False)
 
-                        df_resultado = df_resultado.head(100)
-                        df_resultado.insert(0, '#', range(1, len(df_resultado) + 1))
+        df_resultado = df_resultado.head(100)
+        df_resultado.insert(0, '#', range(1, len(df_resultado) + 1))
 
-                        column_config = {
-                            '#': st.column_config.NumberColumn(width='small'),
-                            'Score': st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f"),
-                        }
-                        for col in df_resultado.columns:
-                            if col in list(indices_cfg.keys()):
-                                column_config[col] = st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f")
-                            elif col.startswith('SC:'):
-                                column_config[col] = st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f")
+        # Column config
+        column_config = {
+            '#': st.column_config.NumberColumn(width='small'),
+            'Score': st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f"),
+        }
+        for col in df_resultado.columns:
+            if col in list(indices_cfg.keys()):
+                column_config[col] = st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f")
+            elif col.startswith('SC:'):
+                column_config[col] = st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f")
 
-                        st.dataframe(df_resultado, width='stretch', height=600, hide_index=True, column_config=column_config)
-
-            else:
-                # Ordenacao por metrica bruta (nao-indice)
-                sort_col = ordenar_por
-                if sort_col in df_rank.columns:
-                    df_rank_sorted = df_rank.sort_values(sort_col, ascending=False).head(100)
-
-                    show_cols = ['Jogador']
-                    if equipa_col and equipa_col in df_rank_sorted.columns:
-                        show_cols.append(equipa_col)
-                    for c in ['Idade', 'Minutos jogados:', sort_col]:
-                        if c in df_rank_sorted.columns and c not in show_cols:
-                            show_cols.append(c)
-
-                    df_resultado = df_rank_sorted[show_cols].copy()
-                    df_resultado.insert(0, '#', range(1, len(df_resultado) + 1))
-                    st.dataframe(df_resultado, width='stretch', height=600, hide_index=True)
-                else:
-                    st.warning(f"Coluna '{sort_col}' nao encontrada nos dados")
+        st.dataframe(df_resultado, width='stretch', height=600, hide_index=True, column_config=column_config)
     
     # ===== TAB 7: SIMILARIDADE =====
     with tab7:
@@ -3029,8 +3032,10 @@ def main():
                                 indices_cfg_sim = INDICES_CONFIG.get(categoria_sim, INDICES_CONFIG['Meia'])
                                 base_calc_sim = percentile_base_sim if comparar_serie_b_sim else wyscout
                                 
-                                indices_ref_vals = calculate_all_indices(row_ref, indices_cfg_sim, base_calc_sim, categoria_sim)
-                                indices_sim_vals = calculate_all_indices(row_similar, indices_cfg_sim, base_calc_sim, categoria_sim)
+                                indices_ref_vals = {idx_name: calculate_index(row_ref, metrics, base_calc_sim) 
+                                                   for idx_name, metrics in indices_cfg_sim.items()}
+                                indices_sim_vals = {idx_name: calculate_index(row_similar, metrics, base_calc_sim) 
+                                                   for idx_name, metrics in indices_cfg_sim.items()}
                                 
                                 # Headers
                                 flag_sim_h = get_flag(row_similar.get('País de nacionalidade', ''))
