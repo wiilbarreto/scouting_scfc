@@ -7,6 +7,7 @@ import requests
 from bs4 import BeautifulSoup
 import re
 from fuzzy_match import build_skillcorner_index, find_skillcorner_player
+from similarity import compute_weighted_cosine_similarity, get_similarity_breakdown, POSITION_WEIGHTS
 
 
 
@@ -2919,8 +2920,8 @@ def main():
         st.markdown(f"""
         <div style="background: {COLORS['card']}; border-radius: 8px; padding: 12px; margin-bottom: 16px; border: 1px solid {COLORS['border']};">
             <span style="color: {COLORS['text_secondary']}; font-size: 13px;">
-                Encontre jogadores com perfil estatístico similar ao jogador selecionado.
-                O algoritmo compara percentis de métricas relevantes para a posição.
+                Algoritmo de similaridade ponderada por posição (cosine similarity + proximity bonus).
+                Pesos específicos para cada posição destacam as métricas mais relevantes.
             </span>
         </div>
         """, unsafe_allow_html=True)
@@ -2933,7 +2934,6 @@ def main():
             jogador_ref = st.selectbox("Jogador de Referência", jogadores_ws_sim, key='jogador_sim_ref')
         
         with col_sim2:
-            # Detectar posição do jogador
             if jogador_ref:
                 row_ref = wyscout[wyscout['JogadorDisplay'] == jogador_ref].iloc[0]
                 pos_ref = get_posicao_categoria(row_ref.get('Posição', ''))
@@ -2942,153 +2942,240 @@ def main():
             else:
                 pos_ref = 'Meia'
             
-            categorias_sim = list(INDICES_CONFIG.keys())
+            categorias_sim = list(POSITION_WEIGHTS.keys())
             idx_cat = categorias_sim.index(pos_ref) if pos_ref in categorias_sim else 0
             categoria_sim = st.selectbox("Categoria de Posição", categorias_sim, index=idx_cat, key='cat_sim')
         
-        # Filtros adicionais
-        col_sim3, col_sim4, col_sim5 = st.columns(3)
+        # Filtros
+        col_sim3, col_sim4, col_sim5, col_sim6 = st.columns(4)
         
         with col_sim3:
             apenas_mesma_pos = st.checkbox("Apenas mesma posição", value=True, key='mesma_pos_sim')
         
         with col_sim4:
-            idade_range = st.slider("Faixa de Idade", 16, 40, (18, 35), key='idade_sim')
+            idade_sim_range = st.slider("Faixa de Idade", 16, 40, (18, 35), key='idade_sim')
         
         with col_sim5:
             min_min_sim = st.number_input("Minutos Mín", min_value=0, max_value=5000, value=500, step=100, key='min_sim')
         
-        if st.button("🔍 Buscar Similares", key='btn_sim'):
+        with col_sim6:
+            top_n_sim = st.number_input("Top N resultados", min_value=5, max_value=50, value=20, step=5, key='top_n_sim')
+        
+        comparar_serie_b_sim = st.checkbox("🇧🇷 Percentis vs Série B", value=False, key='comp_serie_b_sim',
+                                            help="Calcula percentis apenas contra jogadores da Série B 2025")
+        
+        if st.button("🔍 Buscar Similares", key='btn_sim', type='primary'):
             if jogador_ref:
                 row_ref = wyscout[wyscout['JogadorDisplay'] == jogador_ref].iloc[0]
                 
-                # Métricas para comparação baseadas na posição
-                indices_cfg = INDICES_CONFIG.get(categoria_sim, INDICES_CONFIG['Meia'])
-                metricas_sim = []
-                for metrics in indices_cfg.values():
-                    metricas_sim.extend(metrics)
-                metricas_sim = list(set(metricas_sim))  # Remover duplicatas
+                # Montar pool de comparação
+                wyscout_pool = wyscout.copy()
                 
-                # Calcular percentis do jogador de referência
-                perfil_ref = {}
-                for m in metricas_sim:
-                    if m in row_ref.index and m in wyscout.columns:
-                        val = safe_float(row_ref[m])
-                        if val is not None:
-                            perc = calculate_percentile(val, wyscout[m])
-                            if pd.notna(perc):
-                                perfil_ref[m] = float(perc)
+                if apenas_mesma_pos:
+                    wyscout_pool = wyscout_pool[wyscout_pool['Posição'].apply(get_posicao_categoria) == categoria_sim]
                 
-                if not perfil_ref:
-                    st.warning("Não foi possível calcular o perfil do jogador de referência")
+                # Filtro de idade
+                wyscout_pool['_idade_f'] = wyscout_pool['Idade'].apply(safe_float)
+                wyscout_pool = wyscout_pool[
+                    (wyscout_pool['_idade_f'] >= idade_sim_range[0]) & 
+                    (wyscout_pool['_idade_f'] <= idade_sim_range[1])
+                ]
+                wyscout_pool = wyscout_pool.drop(columns=['_idade_f'])
+                
+                # Excluir o próprio jogador
+                wyscout_pool = wyscout_pool[wyscout_pool['JogadorDisplay'] != jogador_ref]
+                
+                # Base de percentis
+                if comparar_serie_b_sim:
+                    percentile_base_sim = wyscout[wyscout['Equipa'].apply(is_serie_b_team)].copy()
                 else:
-                    # Filtrar candidatos
-                    df_candidatos = wyscout.copy()
-                    
-                    if apenas_mesma_pos:
-                        df_candidatos = df_candidatos[df_candidatos['Posição'].apply(get_posicao_categoria) == categoria_sim]
-                    
-                    df_candidatos['Idade'] = df_candidatos['Idade'].apply(safe_float)
-                    df_candidatos = df_candidatos[(df_candidatos['Idade'] >= idade_range[0]) & (df_candidatos['Idade'] <= idade_range[1])]
-                    
-                    df_candidatos['Minutos jogados:'] = df_candidatos['Minutos jogados:'].apply(safe_float)
-                    df_candidatos = df_candidatos[df_candidatos['Minutos jogados:'] >= min_min_sim]
-                    
-                    # Excluir o próprio jogador
-                    df_candidatos = df_candidatos[df_candidatos['JogadorDisplay'] != jogador_ref]
-                    
-                    # Limitar candidatos para performance
-                    df_candidatos = df_candidatos.head(1000)
-                    
-                    # Calcular similaridade
-                    similaridades = []
-                    
-                    with st.spinner(f'Calculando similaridade com {len(df_candidatos)} jogadores...'):
-                        for _, row in df_candidatos.iterrows():
-                            try:
-                                perfil_cand = {}
-                                for m in metricas_sim:
-                                    if m in row.index and m in wyscout.columns:
-                                        val = safe_float(row[m])
-                                        if val is not None:
-                                            perc = calculate_percentile(val, wyscout[m])
-                                            if pd.notna(perc):
-                                                perfil_cand[m] = float(perc)
-                                
-                                # Calcular distância euclidiana
-                                metricas_comuns = set(perfil_ref.keys()) & set(perfil_cand.keys())
-                                if len(metricas_comuns) >= 5:  # Mínimo de métricas para comparar
-                                    distancia = 0
-                                    for m in metricas_comuns:
-                                        distancia += (perfil_ref[m] - perfil_cand[m]) ** 2
-                                    distancia = np.sqrt(distancia / len(metricas_comuns))
-                                    
-                                    # Converter para similaridade (0-100)
-                                    similaridade = max(0, 100 - distancia)
-                                    
-                                    similaridades.append({
-                                        'Jogador': row['Jogador'],
-                                        'Clube': row.get('Equipa', '-'),
-                                        'Idade': safe_int(row.get('Idade')),
-                                        'Min': safe_int(row.get('Minutos jogados:')),
-                                        'Similaridade': round(similaridade, 1),
-                                        'Métricas': len(metricas_comuns)
-                                    })
-                            except:
-                                continue
-                    
-                    if similaridades:
-                        df_sim = pd.DataFrame(similaridades)
-                        df_sim = df_sim.sort_values('Similaridade', ascending=False).head(20)
-                        df_sim.insert(0, '#', range(1, len(df_sim) + 1))
-                        
-                        # Info do jogador de referência
-                        st.markdown(f"""
-                        <div style="background: linear-gradient(135deg, {COLORS['accent']}, #b91c1c); border-radius: 8px; padding: 16px; margin: 16px 0;">
-                            <div style="color: rgba(255,255,255,0.7); font-size: 11px; letter-spacing: 1px;">JOGADOR DE REFERÊNCIA</div>
-                            <div style="color: white; font-size: 20px; font-weight: 700; margin-top: 4px;">{row_ref['Jogador']}</div>
-                            <div style="color: rgba(255,255,255,0.8); font-size: 13px; margin-top: 4px;">{row_ref['Equipa']} • {safe_int(row_ref.get('Idade'))} anos • {categoria_sim}</div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        st.markdown(f"**Top {len(df_sim)} jogadores mais similares**", unsafe_allow_html=True)
-                        
-                        st.dataframe(
-                            df_sim,
-                            width='stretch',
-                            height=500,
-                            hide_index=True,
-                            column_config={
-                                '#': st.column_config.NumberColumn(width='small'),
-                                'Similaridade': st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f%%"),
-                            }
+                    percentile_base_sim = wyscout.copy()
+                
+                with st.spinner(f'Calculando similaridade ponderada para {len(wyscout_pool)} candidatos...'):
+                    try:
+                        similar_players = compute_weighted_cosine_similarity(
+                            target_player=row_ref,
+                            comparison_pool=wyscout_pool,
+                            position=categoria_sim,
+                            top_n=top_n_sim,
+                            min_minutes=min_min_sim,
+                            minutes_col='Minutos jogados:',
+                            player_display_col='JogadorDisplay',
+                            percentile_base=percentile_base_sim,
                         )
+                    except Exception as e:
+                        st.error(f"Erro no cálculo de similaridade: {e}")
+                        similar_players = None
+                
+                if similar_players is not None and len(similar_players) > 0:
+                    # Info do jogador de referência
+                    flag_ref_sim = get_flag(row_ref.get('País de nacionalidade', ''))
+                    club_logo_ref_sim = get_club_logo_html(row_ref.get('Equipa', ''), size=20)
+                    
+                    comp_label_sim = "| Percentis vs Série B" if comparar_serie_b_sim else ""
+                    st.markdown(f"""
+                    <div style="background: linear-gradient(135deg, {COLORS['accent']}, #b91c1c); border-radius: 8px; padding: 16px; margin: 16px 0;">
+                        <div style="color: rgba(255,255,255,0.7); font-size: 11px; letter-spacing: 1px;">JOGADOR DE REFERÊNCIA</div>
+                        <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+                            <span style="font-size: 24px;">{flag_ref_sim}</span>
+                            <span style="color: white; font-size: 20px; font-weight: 700;">{row_ref['Jogador']}</span>
+                        </div>
+                        <div style="color: rgba(255,255,255,0.8); font-size: 13px; margin-top: 4px;">
+                            {club_logo_ref_sim}{row_ref['Equipa']} | {safe_int(row_ref.get('Idade'))} anos | 
+                            {display_int(row_ref.get('Minutos jogados:'), ' min')} | {categoria_sim}
+                        </div>
+                        <div style="color: rgba(255,255,255,0.6); font-size: 11px; margin-top: 6px;">
+                            Cosine Similarity ponderada (70%) + Proximity Bonus (30%) | 
+                            {len(wyscout_pool)} candidatos {comp_label_sim}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Preparar DataFrame para exibição
+                    df_sim_display = similar_players.copy()
+                    df_sim_display.insert(0, '#', range(1, len(df_sim_display) + 1))
+                    
+                    # Colunas para exibição
+                    show_cols = ['#']
+                    col_rename = {'similarity_pct': 'Similaridade %', 'matched_metrics': 'Métricas'}
+                    
+                    if 'JogadorDisplay' in df_sim_display.columns:
+                        show_cols.append('JogadorDisplay')
+                        col_rename['JogadorDisplay'] = 'Jogador'
+                    elif 'Jogador' in df_sim_display.columns:
+                        show_cols.append('Jogador')
+                    
+                    if 'Equipa' in df_sim_display.columns:
+                        show_cols.append('Equipa')
+                        col_rename['Equipa'] = 'Clube'
+                    
+                    for c in ['Idade', 'Minutos jogados:']:
+                        if c in df_sim_display.columns:
+                            show_cols.append(c)
+                    
+                    show_cols.extend(['similarity_pct', 'matched_metrics'])
+                    show_cols = [c for c in show_cols if c in df_sim_display.columns]
+                    
+                    df_sim_show = df_sim_display[show_cols].rename(columns=col_rename)
+                    
+                    st.markdown(f"**Top {len(df_sim_show)} jogadores mais similares**")
+                    
+                    st.dataframe(
+                        df_sim_show,
+                        width='stretch',
+                        height=min(500, 50 + len(df_sim_show) * 35),
+                        hide_index=True,
+                        column_config={
+                            '#': st.column_config.NumberColumn(width='small'),
+                            'Similaridade %': st.column_config.ProgressColumn(
+                                min_value=0, max_value=100, format="%.1f%%"
+                            ),
+                            'Métricas': st.column_config.NumberColumn(width='small'),
+                        }
+                    )
+                    
+                    # ===== COMPARAÇÃO DETALHADA =====
+                    st.markdown(create_section_title("📊", "Comparação Detalhada"), unsafe_allow_html=True)
+                    
+                    if 'JogadorDisplay' in similar_players.columns:
+                        similares_list = similar_players['JogadorDisplay'].tolist()
+                    elif 'Jogador' in similar_players.columns:
+                        similares_list = similar_players['Jogador'].tolist()
+                    else:
+                        similares_list = []
+                    
+                    if similares_list:
+                        comparar_com = st.selectbox("Comparar com:", similares_list, key='sim_compare_select')
                         
-                        # Comparar com o mais similar
-                        if len(df_sim) > 0:
-                            mais_similar = df_sim.iloc[0]['Jogador']
-                            row_similar = wyscout[wyscout['Jogador'] == mais_similar]
+                        if comparar_com:
+                            if 'JogadorDisplay' in similar_players.columns:
+                                row_similar = wyscout[wyscout['JogadorDisplay'] == comparar_com]
+                            else:
+                                row_similar = wyscout[wyscout['Jogador'] == comparar_com]
                             
                             if not row_similar.empty:
                                 row_similar = row_similar.iloc[0]
                                 
-                                st.markdown(create_section_title("📊", f"Comparação: {row_ref['Jogador']} vs {mais_similar}"), unsafe_allow_html=True)
+                                # Breakdown detalhado
+                                try:
+                                    breakdown = get_similarity_breakdown(
+                                        row_ref, row_similar, categoria_sim, percentile_base=percentile_base_sim
+                                    )
+                                except Exception:
+                                    breakdown = None
                                 
-                                # Calcular índices para ambos
-                                indices_ref = {idx_name: calculate_index(row_ref, metrics, wyscout) for idx_name, metrics in indices_cfg.items()}
-                                indices_sim = {idx_name: calculate_index(row_similar, metrics, wyscout) for idx_name, metrics in indices_cfg.items()}
+                                # Radar comparativo de índices compostos
+                                indices_cfg_sim = INDICES_CONFIG.get(categoria_sim, INDICES_CONFIG['Meia'])
+                                base_calc_sim = percentile_base_sim if comparar_serie_b_sim else wyscout
                                 
-                                col_radar1, col_radar2 = st.columns(2)
+                                indices_ref_vals = {idx_name: calculate_index(row_ref, metrics, base_calc_sim) 
+                                                   for idx_name, metrics in indices_cfg_sim.items()}
+                                indices_sim_vals = {idx_name: calculate_index(row_similar, metrics, base_calc_sim) 
+                                                   for idx_name, metrics in indices_cfg_sim.items()}
                                 
-                                with col_radar1:
-                                    st.markdown(f"**{row_ref['Jogador']}**")
-                                    st.plotly_chart(create_wyscout_radar(indices_ref), width='stretch', config={'displayModeBar': False}, key="radar_ref_sim")
+                                # Headers
+                                flag_sim_h = get_flag(row_similar.get('País de nacionalidade', ''))
+                                club_logo_sim_h = get_club_logo_html(row_similar.get('Equipa', ''), size=18)
                                 
-                                with col_radar2:
-                                    st.markdown(f"**{mais_similar}**")
-                                    st.plotly_chart(create_wyscout_radar(indices_sim), width='stretch', config={'displayModeBar': False}, key="radar_sim_sim")
-                    else:
-                        st.warning("Nenhum jogador similar encontrado com os critérios especificados")
+                                col_h1, col_h2 = st.columns(2)
+                                with col_h1:
+                                    st.markdown(f"""
+                                    <div style="background: rgba(220,38,38,0.2); border: 2px solid {COLORS['accent']}; border-radius: 8px; padding: 12px;">
+                                        <span style="font-size: 20px;">{flag_ref_sim}</span>
+                                        <span style="color: white; font-weight: 700;">{row_ref['Jogador']}</span>
+                                        <div style="color: {COLORS['text_secondary']}; font-size: 12px; margin-top: 4px;">{club_logo_ref_sim}{row_ref['Equipa']}</div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                                with col_h2:
+                                    st.markdown(f"""
+                                    <div style="background: rgba(59,130,246,0.2); border: 2px solid #3b82f6; border-radius: 8px; padding: 12px;">
+                                        <span style="font-size: 20px;">{flag_sim_h}</span>
+                                        <span style="color: white; font-weight: 700;">{row_similar['Jogador']}</span>
+                                        <div style="color: {COLORS['text_secondary']}; font-size: 12px; margin-top: 4px;">{club_logo_sim_h}{row_similar['Equipa']}</div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                                
+                                # Radar overlay
+                                st.plotly_chart(
+                                    create_comparison_radar(indices_ref_vals, indices_sim_vals, row_ref['Jogador'], row_similar['Jogador']),
+                                    width='stretch', config={'displayModeBar': False}, key="radar_sim_cmp"
+                                )
+                                
+                                # Tabela de índices
+                                comparison_idx_data = []
+                                for idx_name in indices_cfg_sim.keys():
+                                    v1 = indices_ref_vals[idx_name]
+                                    v2 = indices_sim_vals[idx_name]
+                                    diff = v1 - v2
+                                    comparison_idx_data.append({
+                                        'Índice': idx_name,
+                                        row_ref['Jogador']: f"{v1:.0f}",
+                                        row_similar['Jogador']: f"{v2:.0f}",
+                                        'Diff': f"+{diff:.0f}" if diff > 0 else f"{diff:.0f}",
+                                        ' ': '🔴' if diff > 0 else '🔵' if diff < 0 else '='
+                                    })
+                                st.dataframe(pd.DataFrame(comparison_idx_data), width='stretch', hide_index=True)
+                                
+                                # Breakdown métrica a métrica
+                                if breakdown is not None and len(breakdown) > 0:
+                                    st.markdown(create_section_title("🔬", "Breakdown por Métrica"), unsafe_allow_html=True)
+                                    st.dataframe(
+                                        breakdown,
+                                        width='stretch',
+                                        height=min(500, 50 + len(breakdown) * 35),
+                                        hide_index=True,
+                                    )
+                    
+                    # Exportar
+                    st.download_button(
+                        "📥 Exportar Similaridade (CSV)",
+                        df_sim_show.to_csv(index=False).encode('utf-8'),
+                        f"similaridade_{categoria_sim}.csv",
+                        key='download_sim'
+                    )
+                
+                elif similar_players is not None:
+                    st.warning("Nenhum jogador similar encontrado com os critérios especificados")
             else:
                 st.warning("Selecione um jogador de referência")
 
