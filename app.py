@@ -6,6 +6,9 @@ from urllib.parse import quote
 import requests
 from bs4 import BeautifulSoup
 import re
+from fuzzy_match import build_skillcorner_index, find_skillcorner_player
+
+
 
 # ============================================
 # CONFIG
