@@ -15,6 +15,22 @@ from similarity import (
     POSITION_WEIGHTS, INVERTED_METRICS
 )
 
+# Motor preditivo (usa calibration.py automaticamente)
+try:
+    from predictive_engine import (
+        ScoutScorePreditivo,
+        ContractSuccessPredictor,
+        compute_advanced_similarity,
+        calculate_overall_score_v3,
+        AdvancedSimilarity,
+        TacticalClusterer,
+        DataPreprocessor,
+        POSITION_PROFILES,
+    )
+    HAS_PREDICTIVE = True
+except ImportError:
+    HAS_PREDICTIVE = False
+
 
 # ============================================
 # CONFIG
