@@ -27,7 +27,7 @@ try:
         POSITION_PROFILES,
     )
     HAS_PREDICTIVE = True
-except ImportError:
+except Exception:
     HAS_PREDICTIVE = False
 
 
