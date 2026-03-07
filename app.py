@@ -3199,13 +3199,20 @@ def main():
                     idade_pred = st.number_input("Idade", 16, 42, int(safe_float(row_pred.get('Idade'), 24)), key='idade_pred')
                 with col_p2:
                     ligas_br = ['Serie A Brasil', 'Serie B Brasil', 'Serie C Brasil', 'Serie D Brasil',
-                                'Paulista A1', 'Paulista A2']
+                                'Paulista A1', 'Paulista A2', 'Paulista A3',
+                                'Carioca A1', 'Gaucho A1', 'Mineiro A1',
+                                'Copa do Brasil', 'Copa do Nordeste']
                     liga_origem = st.selectbox("Liga Origem", ligas_br, key='liga_orig')
                 with col_p3:
-                    ligas_alvo = ['Serie A Brasil', 'Serie B Brasil', 'Premier League', 'La Liga',
-                                  'Bundesliga', 'Serie A Italia', 'Ligue 1', 'Liga Portugal',
-                                  'Eredivisie', 'MLS', 'Liga MX', 'Championship',
-                                  'Superliga Argentina']
+                    ligas_alvo = ['Serie A Brasil', 'Serie B Brasil',
+                                  'Premier League', 'La Liga', 'Bundesliga',
+                                  'Serie A Italia', 'Ligue 1',
+                                  'Championship', 'La Liga 2', 'Serie B Italia', '2. Bundesliga', 'Ligue 2',
+                                  'Liga Portugal', 'Liga Portugal 2', 'Eredivisie',
+                                  'Belgian Pro League', 'Super Lig',
+                                  'MLS', 'Liga MX', 'Liga Argentina',
+                                  'J1 League', 'Saudi Pro League',
+                                  'Serie C Brasil', 'Paulista A1']
                     liga_alvo = st.selectbox("Liga Alvo", ligas_alvo, key='liga_alvo')
                 
                 if st.button("🔮 Calcular Predição", type='primary', key='btn_pred'):
@@ -3246,22 +3253,28 @@ def main():
                     """, unsafe_allow_html=True)
                     
                     # Métricas principais
-                    risk_colors = {'baixo': '#22c55e', 'medio': '#eab308', 'alto': '#ef4444'}
+                    risk_colors = {'baixo': '#22c55e', 'medio': '#eab308', 'alto': '#ef4444', 'muito alto': '#991b1b'}
                     risk_color = risk_colors.get(pred['risk_level'], '#6b7280')
                     
                     col_m1, col_m2, col_m3, col_m4 = st.columns(4)
                     col_m1.metric("SSP (Score Preditivo)", f"{ssp_val:.1f}/100")
                     col_m2.metric("P(Sucesso)", f"{pred['success_probability']:.1%}")
                     col_m3.metric("Nível de Risco", pred['risk_level'].upper())
-                    col_m4.metric("Minutagem", f"{minutes:.0f} min")
+                    col_m4.metric("Gap de Liga", f"{pred.get('league_gap', 0):+.1f} tiers")
+                    
+                    # Info de contexto do gap
+                    gap_val = pred.get('league_gap', 0)
+                    if gap_val >= 4:
+                        st.warning(f"⚠️ Gap de **{gap_val:.0f} tiers** ({liga_origem} → {liga_alvo}). Probabilidade limitada pelo ceiling de {35 if gap_val < 5 else 25 if gap_val < 6 else 15}%.")
                     
                     # Componentes
                     st.markdown("**Decomposição dos Fatores:**")
-                    col_f1, col_f2, col_f3, col_f4 = st.columns(4)
-                    col_f1.metric("Performance (SSP)", f"{pred['ssp_contribution']:.2f}")
-                    col_f2.metric("Fator Idade", f"{pred['age_factor']:.2f}")
-                    col_f3.metric("Fator Liga", f"{pred['league_factor']:.2f}")
-                    col_f4.metric("Fator Minutos", f"{pred['minutes_factor']:.2f}")
+                    col_f1, col_f2, col_f3, col_f4, col_f5 = st.columns(5)
+                    col_f1.metric("SSP Ajustado", f"{pred['ssp_contribution']:.3f}", help="SSP descontado pelo nível da liga de origem")
+                    col_f2.metric("Fator Idade", f"{pred['age_factor']:.3f}", help="Peak=26, decay quadrático")
+                    col_f3.metric("Fator Liga", f"{pred['league_factor']:.3f}", help=f"Tiers: {pred.get('tier_origin', '?')} → {pred.get('tier_target', '?')}")
+                    col_f4.metric("Fator Minutos", f"{pred['minutes_factor']:.3f}")
+                    col_f5.metric("Desconto Liga", f"{pred.get('league_discount', 1):.1%}", help="SSP de ligas fracas é descontado")
                     
                     if ssp_engine_pred is not None:
                         st.markdown("**Componentes do SSP:**")
@@ -3314,8 +3327,8 @@ def main():
                                 profile = tc.cluster_profiles.get(k, {})
                                 
                                 with st.expander(f"Perfil {k+1} — {profile.get('size', 0)} jogadores", expanded=(k==0)):
-                                    # Top jogadores do cluster
-                                    jogadores_cluster = df_cluster.head(10)
+                                    # Top jogadores do cluster — ordenados por probabilidade de pertencimento
+                                    jogadores_cluster = df_cluster.sort_values('Prob_Cluster', ascending=False).head(10)
                                     show_cols_cl = ['Jogador', 'Equipa', 'Prob_Cluster']
                                     for c in ['Idade', 'Minutos jogados:']:
                                         if c in jogadores_cluster.columns:
