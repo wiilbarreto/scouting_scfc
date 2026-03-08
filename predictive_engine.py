@@ -797,12 +797,23 @@ class ContractSuccessPredictor:
         'Premier League': 10, 'La Liga': 9.5, 'Serie A Italia': 9, 'Bundesliga': 9, 'Ligue 1': 8,
     }
 
+# ================================================================
+# MÓDULO 8: PREDIÇÃO DE SUCESSO DE CONTRATAÇÃO
+# ================================================================
+
+class ContractSuccessPredictor:
+    LEAGUE_TIERS = {
+        'Serie A Brasil': 7, 'Serie B Brasil': 5, 'Serie C Brasil': 3, 'Serie D Brasil': 1.5,
+        'Premier League': 10, 'La Liga': 9.5, 'Serie A Italia': 9, 'Bundesliga': 9, 'Ligue 1': 8,
+    }
+
     def predict_success_unsupervised(self, ssp_score: float, age: float, league_origin: str, league_target: str, minutes: float, max_minutes: float = 3000) -> Dict[str, Any]:
         tier_origin = self.LEAGUE_TIERS.get(league_origin, 5)
         tier_target = self.LEAGUE_TIERS.get(league_target, 5)
         gap = tier_target - tier_origin
         
-        ssp_adj = (ssp_score / 100.0) * (0.7 + 0.3 * min(tier_origin / 10.0, 1.0))
+        league_discount = 0.7 + 0.3 * min(tier_origin / 10.0, 1.0)
+        ssp_adj = (ssp_score / 100.0) * league_discount
         age_factor = max(0, 1 - ((age - 26) ** 2) / (15 ** 2))
         league_factor = np.exp(-0.35 * gap) if gap > 0 else 1.0
         minutes_factor = min(minutes / max_minutes, 1.0)
@@ -814,8 +825,18 @@ class ContractSuccessPredictor:
         elif gap >= 5: prob = min(prob, 0.25)
         elif gap >= 4: prob = min(prob, 0.35)
 
-        return {'success_probability': round(float(prob), 3), 'risk_level': 'baixo' if prob >= 0.65 else 'medio' if prob >= 0.40 else 'alto' if prob >= 0.20 else 'muito alto'}
-
+        return {
+            'success_probability': round(float(prob), 3), 
+            'risk_level': 'baixo' if prob >= 0.65 else 'medio' if prob >= 0.40 else 'alto' if prob >= 0.20 else 'muito alto',
+            'ssp_contribution': ssp_adj,
+            'age_factor': age_factor,
+            'league_factor': league_factor,
+            'minutes_factor': minutes_factor,
+            'league_discount': league_discount,
+            'tier_origin': tier_origin,
+            'tier_target': tier_target,
+            'league_gap': gap
+        }
 
 # ================================================================
 # HELPERS E BACKWARD COMPATIBILITY
