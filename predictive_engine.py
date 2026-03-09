@@ -786,16 +786,26 @@ class ScoutScorePreditivo:
             return self.clusterer.get_cluster_fit_score(X_single[0]) * 100
         except Exception: return 50.0
 
+    def rank_players(self, df: pd.DataFrame, df_percentil: pd.DataFrame, min_minutes: int = 0,
+                     minutes_col: str = 'Minutos jogados:') -> pd.DataFrame:
+        """Batch scoring: aplica score_player a cada linha e retorna DataFrame rankeado."""
+        if not self._fitted:
+            return df.copy()
 
-# ================================================================
-# MÓDULO 8: PREDIÇÃO DE SUCESSO DE CONTRATAÇÃO
-# ================================================================
+        df_out = df.copy()
+        if min_minutes > 0 and minutes_col in df_out.columns:
+            df_out = df_out[pd.to_numeric(df_out[minutes_col], errors='coerce').fillna(0) >= min_minutes]
 
-class ContractSuccessPredictor:
-    LEAGUE_TIERS = {
-        'Serie A Brasil': 7, 'Serie B Brasil': 5, 'Serie C Brasil': 3, 'Serie D Brasil': 1.5,
-        'Premier League': 10, 'La Liga': 9.5, 'Serie A Italia': 9, 'Bundesliga': 9, 'Ligue 1': 8,
-    }
+        scores = []
+        for idx, row in df_out.iterrows():
+            result = self.score_player(row, df_percentil)
+            scores.append(result.get('ssp') or 0.0)
+
+        df_out['SSP'] = scores
+        df_out['Score'] = df_out['SSP']
+        df_out = df_out.sort_values('SSP', ascending=False).reset_index(drop=True)
+        return df_out
+
 
 # ================================================================
 # MÓDULO 8: PREDIÇÃO DE SUCESSO DE CONTRATAÇÃO
