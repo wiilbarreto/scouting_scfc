@@ -3251,7 +3251,7 @@ def main():
                                              index=ligas_alvo_all.index('Serie B Brasil') if 'Serie B Brasil' in ligas_alvo_all else 0,
                                              key='liga_alvo')
                 
-                if st.button("🔮 Calcular Predição", type='primary', key='btn_pred'):
+                if st.button("Calcular Predição", type='primary', key='btn_pred'):
                     # Obter engine
                     ssp_engine_pred = get_ssp_engine(
                         hash(tuple(wyscout.columns)), wyscout, pos_pred
