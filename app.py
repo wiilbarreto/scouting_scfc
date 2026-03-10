@@ -2912,32 +2912,6 @@ def main():
             incluir_predicao = False
             liga_alvo_rank = 'Serie B Brasil'
         
-        # ===== FILTRO: LIGA ALVO (predição de sucesso) =====
-        if HAS_PREDICTIVE:
-            col_pred1, col_pred2 = st.columns([1, 3])
-            with col_pred1:
-                incluir_predicao = st.checkbox("🎯 Incluir P(Sucesso)", value=False, key='inc_pred_rank',
-                                                help="Calcula probabilidade de sucesso contratual para cada jogador")
-            with col_pred2:
-                if incluir_predicao:
-                    ligas_alvo_ranking = [
-                        'Serie B Brasil', 'Serie A Brasil', 'Serie C Brasil',
-                        'Liga Portugal', 'Liga Portugal 2', 'MLS',
-                        'Liga Argentina', 'J1 League', 'Saudi Pro League',
-                        'Premier League', 'La Liga', 'Bundesliga',
-                        'Serie A Italia', 'Ligue 1', 'Eredivisie',
-                        'Championship', 'Belgian Pro League', 'Super Lig',
-                        'Liga MX', 'Liga Colombia', 'Liga Chile',
-                        'K-League 1', 'A-League',
-                    ]
-                    liga_alvo_rank = st.selectbox("Liga Alvo (contratação)", ligas_alvo_ranking,
-                                                   index=0, key='liga_alvo_rank')
-                else:
-                    liga_alvo_rank = 'Serie B Brasil'
-        else:
-            incluir_predicao = False
-            liga_alvo_rank = 'Serie B Brasil'
-
                 # ===== APLICAR FILTROS =====
         df_rank = wyscout.copy()
         
