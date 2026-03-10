@@ -917,6 +917,104 @@ def resolve_league_to_tier(league_name, team_name=None):
             return 'Serie B Brasil'
     return None
 
+
+# ============================================
+# MAPEAMENTO LIGA WYSCOUT → LEAGUE_TIERS
+# ============================================
+WYSCOUT_LEAGUE_MAP = {
+    # Brasil
+    'Brasil | 1': 'Serie A Brasil', 'Brasil | 2': 'Serie B Brasil',
+    'Brasil | 3': 'Serie C Brasil', 'Brasil | 4': 'Serie D Brasil',
+    'Série A': 'Serie A Brasil', 'Serie A': 'Serie A Brasil',
+    'Série B': 'Serie B Brasil', 'Serie B': 'Serie B Brasil',
+    'Brasileirão': 'Serie A Brasil',
+    # Europa Top 5
+    'England | 1': 'Premier League', 'Inglaterra | 1': 'Premier League',
+    'Premier League': 'Premier League',
+    'England | 2': 'Championship', 'Championship': 'Championship',
+    'Spain | 1': 'La Liga', 'Espanha | 1': 'La Liga', 'La Liga': 'La Liga',
+    'LaLiga': 'La Liga', 'Spain | 2': 'La Liga 2',
+    'Italy | 1': 'Serie A Italia', 'Itália | 1': 'Serie A Italia',
+    'Italy | 2': 'Serie B Italia',
+    'Germany | 1': 'Bundesliga', 'Alemanha | 1': 'Bundesliga',
+    'Bundesliga': 'Bundesliga', 'Germany | 2': '2. Bundesliga',
+    'France | 1': 'Ligue 1', 'França | 1': 'Ligue 1', 'Ligue 1': 'Ligue 1',
+    'France | 2': 'Ligue 2',
+    # Europa Tier 2
+    'Portugal | 1': 'Liga Portugal', 'Liga Portugal': 'Liga Portugal',
+    'Primeira Liga': 'Liga Portugal', 'Portugal | 2': 'Liga Portugal 2',
+    'Netherlands | 1': 'Eredivisie', 'Holanda | 1': 'Eredivisie',
+    'Eredivisie': 'Eredivisie',
+    'Belgium | 1': 'Belgian Pro League', 'Bélgica | 1': 'Belgian Pro League',
+    'Turkey | 1': 'Super Lig', 'Turquia | 1': 'Super Lig',
+    'Scotland | 1': 'Scottish Premiership',
+    'Russia | 1': 'Russian Premier League', 'Rússia | 1': 'Russian Premier League',
+    'Austria | 1': 'Austrian Bundesliga', 'Áustria | 1': 'Austrian Bundesliga',
+    'Switzerland | 1': 'Swiss Super League', 'Suíça | 1': 'Swiss Super League',
+    'Denmark | 1': 'Danish Superliga', 'Dinamarca | 1': 'Danish Superliga',
+    'Greece | 1': 'Greek Super League', 'Grécia | 1': 'Greek Super League',
+    'Ukraine | 1': 'Ukrainian Premier League',
+    'Czech Republic | 1': 'Czech First League',
+    'Croatia | 1': 'Croatian First League',
+    'Serbia | 1': 'Serbian Super Liga',
+    'Poland | 1': 'Polish Ekstraklasa',
+    'Romania | 1': 'Romanian Liga I',
+    'Norway | 1': 'Norwegian Eliteserien',
+    'Sweden | 1': 'Swedish Allsvenskan',
+    'Israel | 1': 'Israeli Premier League',
+    'Bulgaria | 1': 'Bulgarian First League',
+    'Cyprus | 1': 'Cypriot First Division',
+    # Américas
+    'Argentina | 1': 'Liga Argentina', 'Liga Profesional': 'Liga Argentina',
+    'Argentina | 2': 'Liga Argentina B',
+    'USA | 1': 'MLS', 'MLS': 'MLS',
+    'Mexico | 1': 'Liga MX', 'Liga MX': 'Liga MX',
+    'Colombia | 1': 'Liga Colombia', 'Chile | 1': 'Liga Chile',
+    'Uruguay | 1': 'Liga Uruguai', 'Peru | 1': 'Liga Peru',
+    'Ecuador | 1': 'Liga Equador', 'Paraguay | 1': 'Liga Paraguai',
+    'Bolivia | 1': 'Liga Bolivia', 'Venezuela | 1': 'Liga Venezuela',
+    # Ásia
+    'Japan | 1': 'J1 League', 'Japão | 1': 'J1 League', 'Japan | 2': 'J2 League',
+    'Korea | 1': 'K-League 1', 'Coreia | 1': 'K-League 1', 'K League 1': 'K-League 1',
+    'Saudi Arabia | 1': 'Saudi Pro League', 'Arábia Saudita | 1': 'Saudi Pro League',
+    'Qatar | 1': 'Qatar Stars League', 'UAE | 1': 'UAE Pro League',
+    'China | 1': 'Chinese Super League', 'India | 1': 'Indian Super League',
+    # África / Oceania
+    'Egypt | 1': 'Egyptian Premier League', 'South Africa | 1': 'South African Premier',
+    'Morocco | 1': 'Moroccan Botola', 'Tunisia | 1': 'Tunisian Ligue 1',
+    'Australia | 1': 'A-League',
+    # Estaduais / Copas Brasil
+    'Paulista A1': 'Paulista A1', 'Paulista A2': 'Paulista A2', 'Paulista A3': 'Paulista A3',
+    'Carioca A1': 'Carioca A1', 'Gaúcho A1': 'Gaucho A1', 'Gaucho A1': 'Gaucho A1',
+    'Mineiro A1': 'Mineiro A1', 'Paranaense A1': 'Paranaense A1',
+    'Cearense A1': 'Cearense A1', 'Pernambucano A1': 'Pernambucano A1',
+    'Baiano A1': 'Baiano A1',
+    'Copa do Brasil': 'Copa do Brasil', 'Copa do Nordeste': 'Copa do Nordeste',
+    'Copa Libertadores': 'Copa Libertadores', 'Copa Sudamericana': 'Copa Sudamericana',
+}
+
+
+def resolve_league_to_tier(league_name, team_name=None):
+    """Resolve nome de liga WyScout para chave do ContractSuccessPredictor.LEAGUE_TIERS."""
+    if league_name is None:
+        if team_name is None:
+            return None
+    elif pd.notna(league_name):
+        league_str = str(league_name).strip()
+        if league_str in WYSCOUT_LEAGUE_MAP:
+            return WYSCOUT_LEAGUE_MAP[league_str]
+        for key, val in WYSCOUT_LEAGUE_MAP.items():
+            if key.lower() in league_str.lower() or league_str.lower() in key.lower():
+                return val
+    if team_name is not None:
+        try:
+            if pd.notna(team_name) and str(team_name).strip() in SERIE_B_TEAMS:
+                return 'Serie B Brasil'
+        except Exception:
+            pass
+    return None
+
+
 def is_serie_b_team(team_name):
     """Verifica se o time é da Série B 2025"""
     if pd.isna(team_name):
@@ -2783,6 +2881,9 @@ def main():
                     'Passes progressivos/90', 'Corridas progressivas/90', 'Dribles/90', 
                     'Duelos ganhos, %', 'Interseções/90', 'Passes certos, %'
                 ]
+            # Adicionar P(Sucesso) como opção de ordenação (requer motor preditivo)
+            if HAS_PREDICTIVE:
+                metricas_ord.append('🎯 P(Sucesso)')
             ordenar_por = st.selectbox("📈 Ordenar por", metricas_ord, key='ordenar_ranking')
         
         # ===== FILTRO EXTRA: LIGA ALVO (para predição) =====
@@ -2811,7 +2912,33 @@ def main():
             incluir_predicao = False
             liga_alvo_rank = 'Serie B Brasil'
         
-        # ===== APLICAR FILTROS =====
+        # ===== FILTRO: LIGA ALVO (predição de sucesso) =====
+        if HAS_PREDICTIVE:
+            col_pred1, col_pred2 = st.columns([1, 3])
+            with col_pred1:
+                incluir_predicao = st.checkbox("🎯 Incluir P(Sucesso)", value=False, key='inc_pred_rank',
+                                                help="Calcula probabilidade de sucesso contratual para cada jogador")
+            with col_pred2:
+                if incluir_predicao:
+                    ligas_alvo_ranking = [
+                        'Serie B Brasil', 'Serie A Brasil', 'Serie C Brasil',
+                        'Liga Portugal', 'Liga Portugal 2', 'MLS',
+                        'Liga Argentina', 'J1 League', 'Saudi Pro League',
+                        'Premier League', 'La Liga', 'Bundesliga',
+                        'Serie A Italia', 'Ligue 1', 'Eredivisie',
+                        'Championship', 'Belgian Pro League', 'Super Lig',
+                        'Liga MX', 'Liga Colombia', 'Liga Chile',
+                        'K-League 1', 'A-League',
+                    ]
+                    liga_alvo_rank = st.selectbox("Liga Alvo (contratação)", ligas_alvo_ranking,
+                                                   index=0, key='liga_alvo_rank')
+                else:
+                    liga_alvo_rank = 'Serie B Brasil'
+        else:
+            incluir_predicao = False
+            liga_alvo_rank = 'Serie B Brasil'
+
+                # ===== APLICAR FILTROS =====
         df_rank = wyscout.copy()
         
         # Filtro de posição
@@ -2969,6 +3096,8 @@ def main():
 
                         if ordenar_por == '🎯 Índice Geral':
                             sort_col = 'Score'
+                        elif ordenar_por == '🎯 P(Sucesso)':
+                            sort_col = 'P(Sucesso)'
                         else:
                             sort_col = ordenar_por.replace('📊 ', '').replace(' (índice)', '')
 
@@ -2988,17 +3117,17 @@ def main():
                             if ssp_c in df_resultado.columns:
                                 column_config[ssp_c] = st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.0f")
                         for col in df_resultado.columns:
-                        # Colunas de predição
+                            if col in list(indices_cfg.keys()):
+                                column_config[col] = st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f")
+                            elif col.startswith('SC:'):
+                                column_config[col] = st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f")
+                        # Colunas de predicao de sucesso
                         if 'P(Sucesso)' in df_resultado.columns:
                             column_config['P(Sucesso)'] = st.column_config.ProgressColumn(
                                 label="P(Sucesso) %", min_value=0, max_value=100, format="%.1f%%"
                             )
                         if 'Gap Liga' in df_resultado.columns:
                             column_config['Gap Liga'] = st.column_config.NumberColumn(format="%.1f")
-                            if col in list(indices_cfg.keys()):
-                                column_config[col] = st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f")
-                            elif col.startswith('SC:'):
-                                column_config[col] = st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f")
 
                         st.dataframe(df_resultado, width='stretch', height=600, hide_index=True, column_config=column_config)
 
