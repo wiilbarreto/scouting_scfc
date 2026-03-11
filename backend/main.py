@@ -71,6 +71,7 @@ from config.mappings import (
     get_posicao_categoria,
     resolve_league_to_tier,
 )
+# Note: WYSCOUT_LEAGUE_MAP already imported above
 
 logger = logging.getLogger(__name__)
 
@@ -723,6 +724,340 @@ async def list_analyses(current_user: dict = Depends(get_current_user)):
         analyses.append(entry)
 
     return {"analyses": analyses}
+
+
+# ══════════════════════════════════════════════════════════════════════
+# INDICES (detailed index breakdown for a player)
+# ══════════════════════════════════════════════════════════════════════
+
+@app.get("/api/players/{player_display_name}/indices")
+async def get_player_indices(
+    player_display_name: str,
+    position: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """Return composite indices + per-metric breakdown for a player."""
+    df = _get_wyscout()
+    mask = df["JogadorDisplay"] == player_display_name
+    if mask.sum() == 0:
+        mask = df["JogadorDisplay"].str.lower() == player_display_name.lower()
+    if mask.sum() == 0:
+        raise HTTPException(status_code=404, detail="Jogador não encontrado")
+
+    row = df[mask].iloc[0]
+    pos_raw = position or (str(row.get("Posição", "")) if pd.notna(row.get("Posição")) else "Meia")
+    pos = get_posicao_categoria(pos_raw)
+
+    pos_indices = INDICES_CONFIG.get(pos, {})
+    indices = calculate_all_indices(row, pos_indices, df, pos)
+    indices = {k: round(v, 1) for k, v in indices.items()}
+
+    # Per-index metric breakdown
+    breakdown = {}
+    for idx_name, metrics in pos_indices.items():
+        metric_details = []
+        for m in metrics:
+            if m in row.index:
+                val = _safe_float(row.get(m))
+                col_vals = df[m].apply(_safe_float).dropna()
+                perc = 0.0
+                if val is not None and len(col_vals) > 0:
+                    perc = float((col_vals < val).sum() / len(col_vals) * 100)
+                metric_details.append({
+                    "metric": m,
+                    "value": round(val, 2) if val is not None else None,
+                    "percentile": round(perc, 1),
+                })
+        breakdown[idx_name] = metric_details
+
+    return {
+        "player": player_display_name,
+        "position": pos,
+        "indices": indices,
+        "breakdown": breakdown,
+        "summary": {
+            "name": str(row.get("Jogador", "")),
+            "team": str(row.get("Equipa", "")) if pd.notna(row.get("Equipa")) else None,
+            "age": _safe_float(row.get("Idade")),
+            "minutes": _safe_float(row.get("Minutos jogados:")),
+            "position_raw": str(row.get("Posição", "")) if pd.notna(row.get("Posição")) else None,
+        },
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════
+# COMPARISON (detailed comparison with indices)
+# ══════════════════════════════════════════════════════════════════════
+
+@app.post("/api/comparison")
+async def compare_players_indices(
+    req: dict,
+    current_user: dict = Depends(get_current_user),
+):
+    """Compare two players' indices for a given position."""
+    df = _get_wyscout()
+    p1_name = req.get("player1", "")
+    p2_name = req.get("player2", "")
+    pos = get_posicao_categoria(req.get("position", "Meia"))
+
+    mask1 = df["JogadorDisplay"] == p1_name
+    mask2 = df["JogadorDisplay"] == p2_name
+    if mask1.sum() == 0 or mask2.sum() == 0:
+        raise HTTPException(status_code=404, detail="Jogador não encontrado")
+
+    row1 = df[mask1].iloc[0]
+    row2 = df[mask2].iloc[0]
+
+    pos_indices = INDICES_CONFIG.get(pos, {})
+    idx1 = calculate_all_indices(row1, pos_indices, df, pos)
+    idx2 = calculate_all_indices(row2, pos_indices, df, pos)
+
+    comparison = []
+    for name in pos_indices.keys():
+        v1 = round(idx1.get(name, 0), 1)
+        v2 = round(idx2.get(name, 0), 1)
+        comparison.append({
+            "index": name,
+            "player1_value": v1,
+            "player2_value": v2,
+            "diff": round(v1 - v2, 1),
+        })
+
+    def _player_info(row):
+        return {
+            "name": str(row.get("Jogador", "")),
+            "team": str(row.get("Equipa", "")) if pd.notna(row.get("Equipa")) else None,
+            "age": _safe_float(row.get("Idade")),
+            "position_raw": str(row.get("Posição", "")) if pd.notna(row.get("Posição")) else None,
+        }
+
+    return {
+        "position": pos,
+        "player1": _player_info(row1),
+        "player2": _player_info(row2),
+        "comparison": comparison,
+        "indices1": {k: round(v, 1) for k, v in idx1.items()},
+        "indices2": {k: round(v, 1) for k, v in idx2.items()},
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════
+# DATA BROWSER (raw data tables for all sources)
+# ══════════════════════════════════════════════════════════════════════
+
+@app.get("/api/data/{source}")
+async def get_data_table(
+    source: str,
+    search: Optional[str] = None,
+    limit: int = 200,
+    offset: int = 0,
+    current_user: dict = Depends(get_current_user),
+):
+    """Return raw data table for a source (wyscout, analises, oferecidos, skillcorner)."""
+    source_map = {
+        "wyscout": "wyscout",
+        "analises": "analises",
+        "oferecidos": "oferecidos",
+        "skillcorner": "skillcorner",
+    }
+    key = source_map.get(source)
+    if not key:
+        raise HTTPException(status_code=400, detail=f"Fonte inválida: {source}")
+
+    raw_df = _data.get(key)
+    if raw_df is None or len(raw_df) == 0:
+        return {"source": source, "total": 0, "columns": [], "rows": []}
+
+    df = raw_df.copy()
+
+    # Column selection per source
+    col_map = {
+        "wyscout": ["Jogador", "Equipa", "Posição", "Idade", "Partidas jogadas", "Minutos jogados:", "Golos", "Assistências", "Golos esperados/90", "Assistências esperadas/90", "Liga", "liga_tier"],
+        "analises": None,  # all columns
+        "oferecidos": None,
+        "skillcorner": ["player_name", "short_name", "team_name", "position_group", "age", "count_match"],
+    }
+    selected_cols = col_map.get(source)
+    if selected_cols:
+        selected_cols = [c for c in selected_cols if c in df.columns]
+        if selected_cols:
+            df = df[selected_cols]
+
+    # Search
+    if search:
+        search_lower = search.lower()
+        text_cols = df.select_dtypes(include=["object"]).columns
+        mask = pd.Series(False, index=df.index)
+        for col in text_cols[:5]:
+            mask |= df[col].astype(str).str.lower().str.contains(search_lower, na=False)
+        df = df[mask]
+
+    total = len(df)
+    df = df.iloc[offset:offset + limit]
+
+    rows = []
+    for _, row in df.iterrows():
+        r = {}
+        for col in df.columns:
+            val = row.get(col)
+            if pd.notna(val):
+                r[col] = str(val) if not isinstance(val, (int, float, np.integer, np.floating)) else val
+                if isinstance(r[col], (float, np.floating)) and np.isnan(r[col]):
+                    r[col] = None
+            else:
+                r[col] = None
+        rows.append(r)
+
+    return {
+        "source": source,
+        "total": total,
+        "columns": list(df.columns),
+        "rows": rows,
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════
+# PREDICTION (contract success prediction)
+# ══════════════════════════════════════════════════════════════════════
+
+@app.post("/api/prediction")
+async def predict_contract_success(
+    req: dict,
+    current_user: dict = Depends(get_current_user),
+):
+    """Predict contract success probability for a player at a target league."""
+    df = _get_wyscout()
+    player_name = req.get("player_name", "")
+    league_origin = req.get("league_origin", "")
+    league_target = req.get("league_target", "Serie B Brasil")
+
+    mask = df["JogadorDisplay"] == player_name
+    if mask.sum() == 0:
+        mask = df["JogadorDisplay"].str.lower() == player_name.lower()
+    if mask.sum() == 0:
+        raise HTTPException(status_code=404, detail="Jogador não encontrado")
+
+    row = mask.idxmax()
+    row_data = df.loc[row]
+    pos_raw = str(row_data.get("Posição", "")) if pd.notna(row_data.get("Posição")) else "Meia"
+    pos = get_posicao_categoria(pos_raw)
+
+    ssp = calculate_overall_score(row_data, pos, df) or 50.0
+    age = _safe_float(row_data.get("Idade")) or 24
+    minutes = _safe_float(row_data.get("Minutos jogados:")) or 0
+
+    # Use provided league_origin or detect from data
+    if not league_origin:
+        league_origin = str(row_data.get("liga_tier", "")) if pd.notna(row_data.get("liga_tier")) else "Serie B Brasil"
+
+    predictor = ContractSuccessPredictor()
+    pred = predictor.predict_success_unsupervised(
+        ssp_score=ssp,
+        age=age,
+        league_origin=league_origin,
+        league_target=league_target,
+        minutes=minutes,
+    )
+
+    return {
+        "player": {
+            "name": str(row_data.get("Jogador", "")),
+            "display_name": player_name,
+            "team": str(row_data.get("Equipa", "")) if pd.notna(row_data.get("Equipa")) else None,
+            "position": pos,
+            "age": age,
+            "minutes": minutes,
+            "league": league_origin,
+        },
+        "ssp_score": round(ssp, 1),
+        "prediction": pred,
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════
+# CLUSTERS (tactical clustering)
+# ══════════════════════════════════════════════════════════════════════
+
+@app.post("/api/clusters")
+async def get_clusters(
+    req: dict,
+    current_user: dict = Depends(get_current_user),
+):
+    """Run tactical clustering for a position."""
+    from services.predictive_engine import TacticalClusterer, DataPreprocessor
+
+    df = _get_wyscout()
+    position = get_posicao_categoria(req.get("position", "Meia"))
+    min_minutes = req.get("min_minutes", 500)
+
+    # Filter by position
+    pool = df[df["Posição"].apply(lambda p: get_posicao_categoria(p) == position if pd.notna(p) else False)].copy()
+
+    pp = DataPreprocessor()
+    features = pp.get_available_features(pool, position)
+    if len(features) < 5:
+        return {"position": position, "clusters": [], "error": "Features insuficientes"}
+
+    try:
+        df_f, X, available = pp.prepare_matrix(pool, features, min_minutes=min_minutes)
+    except Exception as e:
+        return {"position": position, "clusters": [], "error": str(e)}
+
+    if len(df_f) < 15:
+        return {"position": position, "clusters": [], "error": f"Jogadores insuficientes: {len(df_f)}"}
+
+    tc = TacticalClusterer()
+    tc.fit(X, available)
+    result = tc.predict(X)
+
+    df_f["Cluster"] = result["labels"]
+    df_f["Prob_Cluster"] = (result["probabilities"].max(axis=1) * 100).round(1)
+
+    clusters = []
+    for k in range(tc.optimal_k):
+        mask = df_f["Cluster"] == k
+        df_cluster = df_f[mask].sort_values("Prob_Cluster", ascending=False)
+        profile = tc.cluster_profiles.get(k, {})
+
+        top_players = []
+        for _, r in df_cluster.head(10).iterrows():
+            top_players.append({
+                "name": str(r.get("Jogador", "")),
+                "team": str(r.get("Equipa", "")) if pd.notna(r.get("Equipa")) else None,
+                "probability": float(r.get("Prob_Cluster", 0)),
+                "age": _safe_float(r.get("Idade")),
+                "minutes": _safe_float(r.get("Minutos jogados:")),
+            })
+
+        centroid = profile.get("centroid", {})
+        top_features = sorted(centroid.items(), key=lambda x: -abs(x[1]))[:8]
+
+        clusters.append({
+            "id": k,
+            "size": int(profile.get("size", mask.sum())),
+            "players": top_players,
+            "features": [{"metric": m, "zscore": round(v, 2)} for m, v in top_features],
+        })
+
+    return {
+        "position": position,
+        "n_clusters": tc.optimal_k,
+        "total_players": len(df_f),
+        "clusters": clusters,
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════
+# LEAGUE MAPPINGS
+# ══════════════════════════════════════════════════════════════════════
+
+@app.get("/api/config/league-mappings")
+async def get_league_mappings(current_user: dict = Depends(get_current_user)):
+    """Return full league mapping for prediction dropdown and display."""
+    return {
+        "wyscout_league_map": WYSCOUT_LEAGUE_MAP,
+        "league_logos": LEAGUE_LOGOS,
+    }
 
 
 # ══════════════════════════════════════════════════════════════════════

@@ -6,8 +6,14 @@ import { useAuth } from './hooks/useAuth';
 import LoginPage from './components/LoginPage';
 import Layout, { type TabId } from './components/Layout';
 import DashboardPage from './pages/DashboardPage';
+import IndicesPage from './pages/IndicesPage';
+import ReportPage from './pages/ReportPage';
+import ComparisonPage from './pages/ComparisonPage';
+import DataBrowserPage from './pages/DataBrowserPage';
 import RankingsPage from './pages/RankingsPage';
 import SimilarityPage from './pages/SimilarityPage';
+import PredictionPage from './pages/PredictionPage';
+import ClustersPage from './pages/ClustersPage';
 import OfferedPage from './pages/OfferedPage';
 import AnalysesPage from './pages/AnalysesPage';
 
@@ -23,10 +29,22 @@ function App() {
     switch (activeTab) {
       case 'dashboard':
         return <DashboardPage />;
+      case 'indices':
+        return <IndicesPage />;
+      case 'report':
+        return <ReportPage />;
+      case 'comparison':
+        return <ComparisonPage />;
+      case 'data':
+        return <DataBrowserPage />;
       case 'rankings':
         return <RankingsPage />;
       case 'similarity':
         return <SimilarityPage />;
+      case 'prediction':
+        return <PredictionPage />;
+      case 'clusters':
+        return <ClustersPage />;
       case 'offered':
         return <OfferedPage />;
       case 'analyses':
