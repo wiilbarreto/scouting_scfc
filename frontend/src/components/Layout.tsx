@@ -10,10 +10,26 @@ import {
   LogOut,
   Menu,
   X,
+  ArrowLeftRight,
+  Database,
+  Target,
+  Dna,
+  FileBarChart,
 } from 'lucide-react';
 import type { User } from '../types/api';
 
-export type TabId = 'dashboard' | 'rankings' | 'similarity' | 'offered' | 'analyses';
+export type TabId =
+  | 'dashboard'
+  | 'indices'
+  | 'report'
+  | 'comparison'
+  | 'data'
+  | 'rankings'
+  | 'similarity'
+  | 'prediction'
+  | 'clusters'
+  | 'offered'
+  | 'analyses';
 
 interface LayoutProps {
   user: User;
@@ -24,10 +40,16 @@ interface LayoutProps {
 }
 
 const NAV_ITEMS: { id: TabId; label: string; icon: React.ReactNode }[] = [
-  { id: 'dashboard', label: 'Jogadores', icon: <Users size={16} /> },
-  { id: 'rankings', label: 'Rankings', icon: <Trophy size={16} /> },
+  { id: 'dashboard', label: 'Perfil', icon: <BarChart3 size={16} /> },
+  { id: 'indices', label: 'Indices', icon: <FileBarChart size={16} /> },
+  { id: 'report', label: 'Relatorio', icon: <FileText size={16} /> },
+  { id: 'comparison', label: 'Comparativo', icon: <ArrowLeftRight size={16} /> },
+  { id: 'data', label: 'Dados', icon: <Database size={16} /> },
+  { id: 'rankings', label: 'Ranking', icon: <Trophy size={16} /> },
   { id: 'similarity', label: 'Similaridade', icon: <Search size={16} /> },
-  { id: 'offered', label: 'Oferecidos', icon: <FileText size={16} /> },
+  { id: 'prediction', label: 'Predicao', icon: <Target size={16} /> },
+  { id: 'clusters', label: 'Clusters', icon: <Dna size={16} /> },
+  { id: 'offered', label: 'Oferecidos', icon: <Users size={16} /> },
   { id: 'analyses', label: 'Analises', icon: <BarChart3 size={16} /> },
 ];
 
@@ -66,7 +88,7 @@ export default function Layout({ user, activeTab, onTabChange, onLogout, childre
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 px-2 py-2 space-y-0.5">
+        <nav className="flex-1 px-2 py-2 space-y-0.5 overflow-y-auto">
           {NAV_ITEMS.map((item) => {
             const active = activeTab === item.id;
             return (
@@ -157,7 +179,7 @@ export default function Layout({ user, activeTab, onTabChange, onLogout, childre
               <div className="px-4 py-5">
                 <div className="font-[var(--font-display)] text-sm font-bold">SCOUTING BFSA</div>
               </div>
-              <nav className="flex-1 px-2 space-y-0.5">
+              <nav className="flex-1 px-2 space-y-0.5 overflow-y-auto">
                 {NAV_ITEMS.map((item) => {
                   const active = activeTab === item.id;
                   return (
