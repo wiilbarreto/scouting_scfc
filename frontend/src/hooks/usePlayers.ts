@@ -29,9 +29,10 @@ export const configKeys = {
   leagues: ['config', 'leagues'] as const,
 };
 
-// ── Shared staleTime for Wyscout/SkillCorner data (5 minutes) ──
+// ── Shared staleTime for Wyscout/SkillCorner data (10 minutes) ──
+// Prevents cache invalidation when switching tabs via AnimatePresence
 
-const STALE_TIME = 5 * 60 * 1000;
+const STALE_TIME = 10 * 60 * 1000;
 
 // ── Config hooks ──
 

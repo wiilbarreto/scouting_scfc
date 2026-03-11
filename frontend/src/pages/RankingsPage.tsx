@@ -37,7 +37,7 @@ export default function RankingsPage() {
           Rankings
         </h1>
         <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
-          Classificacao ponderada por indices compostos (SSP Lambdas) e Scout Score
+          SSP = 0.25×WP + 0.25×Efficiency + 0.15×Cluster + 0.35×Percentil (POSITION_WEIGHTS)
         </p>
       </div>
 
@@ -101,7 +101,7 @@ export default function RankingsPage() {
                   </th>
                 ))}
                 <th className="px-3 py-2.5 text-right text-[10px] font-[var(--font-display)] tracking-[0.1em] uppercase" style={{ color: 'var(--color-accent)' }}>
-                  <span className="flex items-center justify-end gap-1">Score <ArrowUpDown size={10} /></span>
+                  <span className="flex items-center justify-end gap-1">SSP <ArrowUpDown size={10} /></span>
                 </th>
               </tr>
             </thead>

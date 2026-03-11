@@ -38,7 +38,11 @@ export default function DashboardPage() {
   }), [debouncedSearch, position, league, minAge, maxAge]);
 
   const { data, isLoading, isFetching } = usePlayers(queryParams);
-  const players = data?.players ?? [];
+  // Sort players by SSP (scout_score) descending — SSP is the primary ranking metric
+  const players = useMemo(() => {
+    const list = data?.players ?? [];
+    return [...list].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  }, [data]);
   const total = data?.total ?? 0;
 
   return (
@@ -248,14 +252,17 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    {/* Score badge */}
+                    {/* SSP badge (Scout Score Preditivo) */}
                     {player.score != null && (
-                      <span
-                        className="text-[10px] font-[var(--font-mono)] font-bold px-1.5 py-0.5 rounded"
-                        style={{ color: getScoreColor(player.score), background: `${getScoreColor(player.score)}15` }}
-                      >
-                        {player.score.toFixed(1)}
-                      </span>
+                      <div className="flex flex-col items-end">
+                        <span
+                          className="text-[10px] font-[var(--font-mono)] font-bold px-1.5 py-0.5 rounded"
+                          style={{ color: getScoreColor(player.score), background: `${getScoreColor(player.score)}15` }}
+                        >
+                          {player.score.toFixed(1)}
+                        </span>
+                        <span className="text-[8px] font-[var(--font-display)] tracking-widest" style={{ color: 'var(--color-text-muted)' }}>SSP</span>
+                      </div>
                     )}
 
                     {/* Minutes */}

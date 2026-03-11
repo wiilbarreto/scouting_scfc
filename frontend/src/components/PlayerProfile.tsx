@@ -65,7 +65,7 @@ export default function PlayerProfile({ playerDisplayName, onClose }: PlayerProf
     );
   }
 
-  const { summary, percentiles, indices, scout_score, performance_class, skillcorner, projection_score } = profile;
+  const { summary, percentiles, indices, scout_score, performance_class, skillcorner, projection_score, ssp_lambdas, prediction } = profile;
 
   return (
     <AnimatePresence mode="wait">
@@ -163,7 +163,7 @@ export default function PlayerProfile({ playerDisplayName, onClose }: PlayerProf
                   className="text-xs font-[var(--font-display)] tracking-[0.15em] uppercase"
                   style={{ color: 'var(--color-text-muted)' }}
                 >
-                  SCOUT SCORE
+                  SSP (SCOUT SCORE PREDITIVO)
                 </span>
               </div>
               <div className="flex items-center gap-3">
@@ -344,6 +344,81 @@ export default function PlayerProfile({ playerDisplayName, onClose }: PlayerProf
                 </motion.div>
               ))}
             </div>
+          </motion.div>
+        )}
+        {/* ── P(Sucesso) Prediction Card ──────────────────────────── */}
+        {prediction && (
+          <motion.div variants={fadeUp} className="card-glass rounded-lg p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <TrendingUp size={14} style={{ color: prediction.success_probability >= 0.65 ? '#22c55e' : prediction.success_probability >= 0.40 ? '#eab308' : '#ef4444' }} />
+              <span
+                className="text-[10px] font-[var(--font-display)] tracking-[0.2em] uppercase"
+                style={{ color: 'var(--color-text-muted)' }}
+              >
+                PREDICAO DE SUCESSO (CONTRATACAO)
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+              {/* P(Sucesso) main */}
+              <div className="p-3 rounded" style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border-subtle)' }}>
+                <div className="text-[10px] mb-1" style={{ color: 'var(--color-text-muted)' }}>P(Sucesso)</div>
+                <div className="text-2xl font-[var(--font-mono)] font-bold" style={{ color: prediction.success_probability >= 0.65 ? '#22c55e' : prediction.success_probability >= 0.40 ? '#eab308' : '#ef4444' }}>
+                  {(prediction.success_probability * 100).toFixed(0)}%
+                </div>
+                <div className="text-[9px] font-[var(--font-display)] tracking-wider uppercase mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+                  Risco: {prediction.risk_level}
+                </div>
+              </div>
+
+              {/* League Gap */}
+              <div className="p-3 rounded" style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border-subtle)' }}>
+                <div className="text-[10px] mb-1" style={{ color: 'var(--color-text-muted)' }}>Gap de Liga</div>
+                <div className="text-lg font-[var(--font-mono)] font-bold" style={{ color: prediction.league_gap > 2 ? '#ef4444' : prediction.league_gap > 0 ? '#eab308' : '#22c55e' }}>
+                  {prediction.league_gap > 0 ? '+' : ''}{prediction.league_gap.toFixed(1)}
+                </div>
+                <div className="text-[9px] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+                  Tier {prediction.tier_origin.toFixed(1)} → {prediction.tier_target.toFixed(1)}
+                </div>
+              </div>
+
+              {/* Age Factor */}
+              <div className="p-3 rounded" style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border-subtle)' }}>
+                <div className="text-[10px] mb-1" style={{ color: 'var(--color-text-muted)' }}>Fator Idade</div>
+                <div className="text-lg font-[var(--font-mono)] font-bold" style={{ color: getScoreColor(prediction.age_factor * 100) }}>
+                  {(prediction.age_factor * 100).toFixed(0)}%
+                </div>
+                <div className="text-[9px] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>Pico aos 26 anos</div>
+              </div>
+
+              {/* Minutes Factor */}
+              <div className="p-3 rounded" style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border-subtle)' }}>
+                <div className="text-[10px] mb-1" style={{ color: 'var(--color-text-muted)' }}>Regularidade</div>
+                <div className="text-lg font-[var(--font-mono)] font-bold" style={{ color: getScoreColor(prediction.minutes_factor * 100) }}>
+                  {(prediction.minutes_factor * 100).toFixed(0)}%
+                </div>
+                <div className="text-[9px] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>Min jogados / 3000</div>
+              </div>
+            </div>
+
+            {/* SSP Lambda weights */}
+            {ssp_lambdas && (
+              <div className="pt-3" style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
+                <div className="text-[9px] font-[var(--font-display)] tracking-[0.15em] uppercase mb-2" style={{ color: 'var(--color-text-muted)' }}>
+                  SSP LAMBDAS (COMPOSICAO DO SCORE)
+                </div>
+                <div className="flex gap-2">
+                  {Object.entries(ssp_lambdas).map(([key, weight]) => (
+                    <div key={key} className="flex-1 text-center p-1.5 rounded" style={{ background: 'var(--color-surface-2)' }}>
+                      <div className="text-[9px] uppercase" style={{ color: 'var(--color-text-muted)' }}>{key}</div>
+                      <div className="text-xs font-[var(--font-mono)] font-bold" style={{ color: 'var(--color-text-primary)' }}>
+                        {(weight * 100).toFixed(0)}%
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
       </motion.div>
