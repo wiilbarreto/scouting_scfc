@@ -111,7 +111,15 @@ export default function ComparisonPage() {
           <div className="card-glass rounded-lg p-5">
             <div className="text-[10px] font-[var(--font-display)] tracking-[0.2em] uppercase mb-3" style={{ color: 'var(--color-text-muted)' }}>RADAR COMPARATIVO ({comparison.position})</div>
             <div className="max-w-lg mx-auto">
-              <RadarChart labels={Object.keys(comparison.indices1)} values={Object.values(comparison.indices1)} size={400} playerName={comparison.player1.name} />
+              <RadarChart
+                labels={Object.keys(comparison.indices1)}
+                values={Object.values(comparison.indices1)}
+                values2={Object.keys(comparison.indices1).map(k => comparison.indices2[k] ?? 0)}
+                color1="#ef4444"
+                color2="#3b82f6"
+                size={400}
+                playerName={comparison.player1.name}
+              />
             </div>
             <div className="flex items-center justify-center gap-4 mt-2">
               <span className="flex items-center gap-1 text-xs"><span className="w-3 h-3 rounded-full" style={{ background: 'var(--color-accent)' }} />{comparison.player1.name}</span>
