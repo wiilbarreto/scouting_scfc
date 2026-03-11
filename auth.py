@@ -295,7 +295,6 @@ def render_login_page():
         st.markdown("""
         <div class="login-info">
             <strong>Primeiro acesso?</strong><br>
-            admin@botafogo-sp.com / botafogo2024
         </div>
         """, unsafe_allow_html=True)
 
