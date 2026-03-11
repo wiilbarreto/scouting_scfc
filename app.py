@@ -9,6 +9,7 @@ import os
 import requests
 from bs4 import BeautifulSoup
 import re
+import unicodedata
 from fuzzy_match import build_skillcorner_index, find_skillcorner_player
 from auth import init_db, is_authenticated, render_login_page, logout, get_current_user, render_admin_panel
 from similarity import (
@@ -983,22 +984,48 @@ WYSCOUT_LEAGUE_MAP = {
 }
 
 
+# Dicionário normalizado para lookup rápido (chave = padronizar_string do nome WyScout)
+_WYSCOUT_LEAGUE_MAP_NORM = {
+    padronizar_string(k): v for k, v in WYSCOUT_LEAGUE_MAP.items()
+}
+
+# Dicionário clube → liga para fallback via merge
+CLUB_LEAGUE_MAP = {}
+for team in SERIE_B_TEAMS:
+    CLUB_LEAGUE_MAP[team] = 'Serie B Brasil'
+
+
 def resolve_league_to_tier(league_name, team_name=None):
-    """Resolve nome de liga WyScout para chave do ContractSuccessPredictor.LEAGUE_TIERS."""
+    """Resolve nome de liga WyScout para chave do LEAGUE_TIERS.
+    Usa padronizar_string() para normalização robusta contra acentos/espaços."""
     if league_name is None:
         if team_name is None:
             return None
     elif pd.notna(league_name):
         league_str = str(league_name).strip()
+        # 1. Match exato
         if league_str in WYSCOUT_LEAGUE_MAP:
             return WYSCOUT_LEAGUE_MAP[league_str]
-        for key, val in WYSCOUT_LEAGUE_MAP.items():
-            if key.lower() in league_str.lower() or league_str.lower() in key.lower():
+        # 2. Match normalizado (sem acentos, minúsculas)
+        league_norm = padronizar_string(league_str)
+        if league_norm in _WYSCOUT_LEAGUE_MAP_NORM:
+            return _WYSCOUT_LEAGUE_MAP_NORM[league_norm]
+        # 3. Match por substring normalizada
+        for key_norm, val in _WYSCOUT_LEAGUE_MAP_NORM.items():
+            if key_norm and (key_norm in league_norm or league_norm in key_norm):
                 return val
+    # 4. Fallback por clube
     if team_name is not None:
         try:
-            if pd.notna(team_name) and str(team_name).strip() in SERIE_B_TEAMS:
-                return 'Serie B Brasil'
+            if pd.notna(team_name):
+                team_str = str(team_name).strip()
+                if team_str in CLUB_LEAGUE_MAP:
+                    return CLUB_LEAGUE_MAP[team_str]
+                # Tentar normalizado
+                team_norm = padronizar_string(team_str)
+                for club, league in CLUB_LEAGUE_MAP.items():
+                    if padronizar_string(club) == team_norm:
+                        return league
         except Exception:
             pass
     return None
@@ -1009,6 +1036,100 @@ def is_serie_b_team(team_name):
     if pd.isna(team_name):
         return False
     return str(team_name).strip() in SERIE_B_TEAMS
+
+
+def mapear_ligas_vetorizado(df, liga_col, equipa_col, liga_alvo_rank):
+    """Mapeia ligas de origem para todos os jogadores de forma vetorizada via merge.
+
+    Etapas:
+    1. Cria Clube_Key normalizada no df principal e no dicionário de clubes
+    2. Faz merge left com o dicionário de ligas via liga normalizada
+    3. Fallback por clube normalizado para registros órfãos
+    4. Fallback fuzzy (thefuzz) para registros ainda órfãos
+    5. Valida e loga registros sem liga mapeada
+
+    Returns:
+        Series com a liga de origem mapeada para cada jogador.
+    """
+    n = len(df)
+    liga_origin = pd.Series([None] * n, index=df.index)
+
+    # === ETAPA 1: Merge por coluna de liga normalizada ===
+    if liga_col and liga_col in df.columns:
+        df_liga_key = df[liga_col].apply(padronizar_string)
+        # Criar dataframe de referência normalizado
+        ref_ligas = pd.DataFrame([
+            {'liga_key': padronizar_string(k), 'liga_tier': v}
+            for k, v in WYSCOUT_LEAGUE_MAP.items()
+        ]).drop_duplicates(subset='liga_key')
+
+        # Merge por chave normalizada
+        merge_df = pd.DataFrame({'liga_key': df_liga_key}, index=df.index)
+        merged = merge_df.merge(ref_ligas, on='liga_key', how='left')
+        merged.index = df.index
+        liga_origin = merged['liga_tier']
+
+    # === ETAPA 2: Fallback por clube normalizado (registros sem liga) ===
+    mask_null = liga_origin.isna()
+    if mask_null.any() and equipa_col and equipa_col in df.columns:
+        # Criar dataframe de referência clube→liga normalizado
+        ref_clubes = pd.DataFrame([
+            {'clube_key': padronizar_string(club), 'liga_tier': league}
+            for club, league in CLUB_LEAGUE_MAP.items()
+        ]).drop_duplicates(subset='clube_key')
+
+        df_clube_key = df.loc[mask_null, equipa_col].apply(padronizar_string)
+        merge_clube = pd.DataFrame({'clube_key': df_clube_key}, index=df_clube_key.index)
+        merged_clube = merge_clube.merge(ref_clubes, on='clube_key', how='left')
+        merged_clube.index = df_clube_key.index
+        liga_origin.loc[mask_null] = merged_clube['liga_tier']
+
+    # === ETAPA 3: Fallback fuzzy (thefuzz) para registros órfãos ===
+    mask_null = liga_origin.isna()
+    if mask_null.any():
+        try:
+            from thefuzz import process as fuzz_process
+            league_keys = list(WYSCOUT_LEAGUE_MAP.keys())
+
+            for idx in df.loc[mask_null].index:
+                raw_liga = df.at[idx, liga_col] if liga_col and liga_col in df.columns else None
+                raw_equipa = df.at[idx, equipa_col] if equipa_col and equipa_col in df.columns else None
+
+                # Tentar match fuzzy pela liga
+                candidate = str(raw_liga) if raw_liga is not None and pd.notna(raw_liga) else None
+                if candidate:
+                    match = fuzz_process.extractOne(candidate, league_keys, score_cutoff=85)
+                    if match:
+                        liga_origin.at[idx] = WYSCOUT_LEAGUE_MAP[match[0]]
+                        continue
+
+                # Tentar match fuzzy pelo clube
+                if raw_equipa is not None and pd.notna(raw_equipa):
+                    club_keys = list(CLUB_LEAGUE_MAP.keys())
+                    match = fuzz_process.extractOne(str(raw_equipa), club_keys, score_cutoff=85)
+                    if match:
+                        liga_origin.at[idx] = CLUB_LEAGUE_MAP[match[0]]
+        except ImportError:
+            logger.info("thefuzz não disponível — fallback fuzzy desativado")
+
+    # === ETAPA 4: Validação — log de registros órfãos ===
+    mask_final = liga_origin.isna()
+    n_orphans = mask_final.sum()
+    if n_orphans > 0:
+        orphan_sample = df.loc[mask_final].head(20)
+        cols_show = ['Jogador']
+        if equipa_col and equipa_col in df.columns:
+            cols_show.append(equipa_col)
+        if liga_col and liga_col in df.columns:
+            cols_show.append(liga_col)
+        cols_show = [c for c in cols_show if c in orphan_sample.columns]
+        logger.warning(
+            "Gap Liga: %d/%d jogadores sem liga mapeada (%.1f%%). Amostra:\n%s",
+            n_orphans, n, (n_orphans / n * 100) if n > 0 else 0,
+            orphan_sample[cols_show].to_string(index=False)
+        )
+
+    return liga_origin
 
 # ============================================
 # FUNÇÕES AUXILIARES DE CONVERSÃO
@@ -1452,10 +1573,24 @@ def normalize_name(name):
     """Normaliza nome para comparação"""
     if pd.isna(name):
         return ""
-    import unicodedata
     name = unicodedata.normalize('NFD', str(name))
     name = ''.join(c for c in name if unicodedata.category(c) != 'Mn')
     return name.lower().strip()
+
+
+def padronizar_string(texto):
+    """Normaliza string removendo acentos, convertendo para minúsculas e aplicando strip.
+    Trata valores nulos nativamente retornando None."""
+    if texto is None or (isinstance(texto, float) and pd.isna(texto)):
+        return None
+    try:
+        if pd.isna(texto):
+            return None
+    except (TypeError, ValueError):
+        pass
+    s = unicodedata.normalize('NFD', str(texto))
+    s = ''.join(c for c in s if unicodedata.category(c) != 'Mn')
+    return s.lower().strip()
 
 
 def find_skillcorner_player(jogador_name, skillcorner_df):
@@ -3055,8 +3190,19 @@ def main():
                 if len(df_ranked) > 0:
                     sc_lookup = create_skillcorner_lookup(skillcorner)
 
+                    # Mapeamento vetorizado de ligas ANTES do loop
+                    equipa_col_ranked = 'Equipa' if 'Equipa' in df_ranked.columns else 'Team' if 'Team' in df_ranked.columns else None
+                    if HAS_PREDICTIVE and incluir_predicao:
+                        _liga_origin_series = mapear_ligas_vetorizado(
+                            df_ranked, liga_col, equipa_col_ranked, liga_alvo_rank
+                        )
+                    else:
+                        _liga_origin_series = pd.Series([None] * len(df_ranked), index=df_ranked.index)
+
                     ranking_data = []
-                    for _, row in df_ranked.iterrows():
+                    predictor = ContractSuccessPredictor() if HAS_PREDICTIVE else None
+
+                    for idx, row in df_ranked.iterrows():
                         entry = {
                             'Jogador': row['Jogador'],
                             'Clube': row.get('Equipa', row.get('Team', '-')),
@@ -3080,36 +3226,31 @@ def main():
                                 if short_name in sc_data:
                                     entry[f'SC: {short_name}'] = sc_data[short_name]
 
-                    # P(Sucesso) — predição de contratação
-                        if HAS_PREDICTIVE and incluir_predicao:
+                    # P(Sucesso) — predição de contratação (liga já mapeada vetorialmente)
+                        if predictor is not None and incluir_predicao:
                             _age = safe_float(row.get('Idade'), 25)
                             _mins = safe_float(row.get('Minutos jogados:'), 0)
                             _ssp = entry['Score']
-                            _liga_ws = row.get(liga_col) if liga_col and liga_col in row.index else None
-                            _equipa = row.get('Equipa', row.get('Team'))
-                            _liga_origin = resolve_league_to_tier(_liga_ws, _equipa)
-                            if _liga_origin is None:
-                                # Tentar usar a liga do filtro se o jogador foi filtrado por liga específica
-                                if liga_rank != 'Todas' and liga_col:
-                                    _liga_origin = resolve_league_to_tier(liga_rank)
-                                # Se ainda None, usar a liga da row diretamente como string
-                                if _liga_origin is None and _liga_ws is not None and pd.notna(_liga_ws):
-                                    _liga_origin = str(_liga_ws).strip()
+                            _liga_origin = _liga_origin_series.at[idx]
+                            # Fallback: liga do filtro se o jogador foi filtrado por liga específica
+                            if _liga_origin is None and liga_rank != 'Todas' and liga_col:
+                                _liga_origin = resolve_league_to_tier(liga_rank)
                             try:
-                                _pred = ContractSuccessPredictor().predict_success_unsupervised(
-                                    ssp_score=_ssp, age=_age,
+                                _pred = predictor.predict_success_unsupervised(
+                                    ssp_score=float(_ssp), age=float(_age),
                                     league_origin=_liga_origin,
                                     league_target=liga_alvo_rank,
-                                    minutes=_mins,
+                                    minutes=float(_mins),
                                 )
-                                entry['P(Sucesso)'] = round(_pred['success_probability'] * 100, 1)
+                                entry['P(Sucesso)'] = round(float(_pred['success_probability']) * 100, 1)
                                 entry['Risco'] = _pred['risk_level'].capitalize()
-                                entry['Gap Liga'] = round(_pred.get('league_gap', 0), 1)
-                            except Exception:
+                                entry['Gap Liga'] = round(float(_pred.get('league_gap', 0)), 1)
+                            except (TypeError, ValueError, KeyError) as e:
+                                logger.debug("Erro predição para %s: %s", row.get('Jogador', '?'), e)
                                 entry['P(Sucesso)'] = None
                                 entry['Risco'] = '-'
-                                entry['Gap Liga'] = None    
-                        
+                                entry['Gap Liga'] = None
+
                         ranking_data.append(entry)
 
                     if ranking_data:
