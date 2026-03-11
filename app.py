@@ -990,9 +990,31 @@ _WYSCOUT_LEAGUE_MAP_NORM = {
 }
 
 # Dicionário clube → liga para fallback via merge
+# Mapeamento clube → liga para fallback no cálculo do Gap Liga
 CLUB_LEAGUE_MAP = {}
 for team in SERIE_B_TEAMS:
     CLUB_LEAGUE_MAP[team] = 'Serie B Brasil'
+
+# Série A 2025
+_SERIE_A_TEAMS = [
+    'Atlético MG', 'Atlético Mineiro', 'Athletico Paranaense', 'Athletico PR',
+    'Bahia', 'Botafogo', 'Corinthians', 'Cruzeiro', 'Flamengo', 'Fluminense',
+    'Fortaleza', 'Grêmio', 'Internacional', 'Juventude', 'Palmeiras',
+    'RB Bragantino', 'Red Bull Bragantino', 'Santos', 'São Paulo',
+    'Vasco', 'Vasco da Gama', 'Vitória', 'Sport', 'Sport Recife',
+    'Ceará', 'Mirassol', 'Novorizontino', 'Grêmio Novorizontino',
+]
+for team in _SERIE_A_TEAMS:
+    CLUB_LEAGUE_MAP[team] = 'Serie A Brasil'
+
+# Clubes internacionais conhecidos
+_INTL_CLUBS = {
+    'River Plate': 'Liga Argentina', 'Boca Juniors': 'Liga Argentina',
+    'Racing Club': 'Liga Argentina', 'Independiente': 'Liga Argentina',
+    'San Lorenzo': 'Liga Argentina',
+    'Peñarol': 'Liga Uruguai', 'Nacional': 'Liga Uruguai',
+}
+CLUB_LEAGUE_MAP.update(_INTL_CLUBS)
 
 
 def resolve_league_to_tier(league_name, team_name=None):
@@ -1490,7 +1512,15 @@ def load_data(uploaded_file=None, use_google_sheets=True):
             return None, None, None, None
     
     # CONVERTER COLUNAS NUMÉRICAS DO WYSCOUT (Google Sheets retorna strings)
-    numeric_cols_ws = [col for col in wyscout.columns if col not in ['Jogador', 'Equipa', 'Equipa dentro de um período de tempo seleccionado', 'Posição', 'Naturalidade', 'País de nacionalidade', 'Pé', 'Emprestado', 'JogadorDisplay']]
+    # Excluir todas as colunas de texto/categorias da conversão numérica
+    text_cols_ws = [
+        'Jogador', 'Equipa', 'Equipa dentro de um período de tempo seleccionado',
+        'Posição', 'Naturalidade', 'País de nacionalidade', 'Pé', 'Emprestado',
+        'JogadorDisplay',
+        # Colunas de liga/competição — NÃO converter para numérico!
+        'Liga', 'Competição', 'Competition', 'League', 'Comp',
+    ]
+    numeric_cols_ws = [col for col in wyscout.columns if col not in text_cols_ws]
     for col in numeric_cols_ws:
         if col in wyscout.columns:
             # Substituir vírgula por ponto e converter
@@ -3091,11 +3121,15 @@ def main():
         
                 # ===== APLICAR FILTROS =====
         df_rank = wyscout.copy()
-        
+
+        # Preservar liga original ANTES de filtrar para cálculo do Gap Liga
+        if liga_col and liga_col in df_rank.columns:
+            df_rank['_liga_original'] = df_rank[liga_col]
+
         # Filtro de posição
         if posicao_rank != 'Todas' and 'Posição' in df_rank.columns:
             df_rank = df_rank[df_rank['Posição'].apply(get_posicao_categoria) == posicao_rank]
-        
+
         # Filtro de liga (WyScout não tem essa coluna)
         if liga_rank != 'Todas' and liga_col and liga_col in df_rank.columns:
             df_rank = df_rank[df_rank[liga_col] == liga_rank]
@@ -3191,10 +3225,12 @@ def main():
                     sc_lookup = create_skillcorner_lookup(skillcorner)
 
                     # Mapeamento vetorizado de ligas ANTES do loop
+                    # Usar _liga_original (preservada antes dos filtros) para o cálculo correto do gap
                     equipa_col_ranked = 'Equipa' if 'Equipa' in df_ranked.columns else 'Team' if 'Team' in df_ranked.columns else None
+                    liga_col_para_gap = '_liga_original' if '_liga_original' in df_ranked.columns else liga_col
                     if HAS_PREDICTIVE and incluir_predicao:
                         _liga_origin_series = mapear_ligas_vetorizado(
-                            df_ranked, liga_col, equipa_col_ranked, liga_alvo_rank
+                            df_ranked, liga_col_para_gap, equipa_col_ranked, liga_alvo_rank
                         )
                     else:
                         _liga_origin_series = pd.Series([None] * len(df_ranked), index=df_ranked.index)
