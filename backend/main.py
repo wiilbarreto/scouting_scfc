@@ -57,6 +57,7 @@ from services.calibration import (
     classify_performance,
     get_calibrated_wp_weights,
 )
+from services.predictive_engine import ContractSuccessPredictor
 from services.fuzzy_match import build_skillcorner_index, find_skillcorner_player
 from config.mappings import (
     CLUB_LOGOS,
@@ -430,6 +431,20 @@ async def get_player_profile(
         age_factor = max(0, min(1.0, (35 - age) / 16))
         projection_score = round(score * 0.6 + score * age_factor * 0.4, 1)
 
+    # P(Sucesso) prediction using ContractSuccessPredictor + LEAGUE_TIERS
+    prediction = None
+    league_raw = str(row.get("liga_tier", "")) if pd.notna(row.get("liga_tier")) else None
+    minutes_val = _safe_float(row.get("Minutos jogados:")) or 0
+    if score is not None and age is not None and league_raw:
+        predictor = ContractSuccessPredictor()
+        prediction = predictor.predict_success_unsupervised(
+            ssp_score=score,
+            age=age,
+            league_origin=league_raw,
+            league_target="Serie A Brasil",  # Botafogo-SP target league
+            minutes=minutes_val,
+        )
+
     return {
         "summary": {
             "id": idx_val,
@@ -450,6 +465,8 @@ async def get_player_profile(
         "performance_class": perf_class,
         "skillcorner": sc_data,
         "projection_score": projection_score,
+        "ssp_lambdas": SSP_LAMBDAS,
+        "prediction": prediction,
     }
 
 

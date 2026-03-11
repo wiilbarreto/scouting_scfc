@@ -25,6 +25,19 @@ export interface PlayerSummary {
   score: number | null;
 }
 
+export interface PredictionResult {
+  success_probability: number;
+  risk_level: string;
+  ssp_contribution: number;
+  age_factor: number;
+  league_factor: number;
+  minutes_factor: number;
+  league_discount: number;
+  tier_origin: number;
+  tier_target: number;
+  league_gap: number;
+}
+
 export interface PlayerProfile {
   summary: PlayerSummary;
   metrics: Record<string, number>;
@@ -34,6 +47,8 @@ export interface PlayerProfile {
   performance_class: string | null;
   skillcorner: Record<string, number> | null;
   projection_score: number | null;
+  ssp_lambdas: Record<string, number> | null;
+  prediction: PredictionResult | null;
 }
 
 export interface RankingEntry {
