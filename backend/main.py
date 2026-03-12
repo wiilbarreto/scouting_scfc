@@ -62,6 +62,8 @@ from services.calibration import (
 )
 from services.predictive_engine import ContractSuccessPredictor
 from services.fuzzy_match import build_skillcorner_index, find_skillcorner_player
+from services.database import init_scouting_tables, load_sheet_dataframe, has_data, get_sync_status
+from services.sync_sheets import sync_all_sheets
 from config.mappings import (
     CLUB_LEAGUE_MAP,
     CLUB_LOGOS,
@@ -149,37 +151,7 @@ _endpoint_cache = _TTLCache(ttl_seconds=300)  # 5 min cache
 
 _data: Dict[str, pd.DataFrame] = {}
 
-GOOGLE_SHEET_ID = os.environ.get(
-    "GOOGLE_SHEET_ID", "1aRjJAxYHJED4FyPnq4PfcrzhhRhzw-vNQ9Vg1pIlak0"
-)
-
-SHEET_NAMES = {
-    "analises": "Análises",
-    "oferecidos": "Oferecidos",
-    "skillcorner": "SkillCorner",
-    "wyscout": "WyScout",
-}
-
-
-def _load_google_sheet(sheet_id: str, sheet_name: str) -> pd.DataFrame:
-    """Load a single sheet from Google Sheets as CSV export (with timeout)."""
-    import urllib.parse
-    import io
-
-    encoded = urllib.parse.quote(sheet_name)
-    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={encoded}"
-    try:
-        import urllib.request
-
-        req = urllib.request.Request(url)
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            raw = resp.read().decode("utf-8")
-        df = pd.read_csv(io.StringIO(raw), dtype=str, na_values=["", "-", "N/A", "nan"])
-        logger.info("Loaded sheet '%s': %d rows x %d cols", sheet_name, len(df), len(df.columns))
-        return df
-    except Exception as e:
-        logger.error("Failed to load sheet '%s': %s", sheet_name, e)
-        return pd.DataFrame()
+SHEET_KEYS = ["analises", "oferecidos", "skillcorner", "wyscout"]
 
 
 def _safe_float(val) -> Optional[float]:
@@ -241,15 +213,39 @@ _data_lock = threading.Lock()
 
 
 def _load_all_data():
-    """Load all sheets into memory — sequential with per-sheet timeout."""
+    """Load all data into memory — tries PostgreSQL first, syncs from Sheets if empty."""
     global _data, _data_loading
 
-    for key, sheet_name in SHEET_NAMES.items():
+    # Ensure scouting tables exist
+    try:
+        init_scouting_tables()
+    except Exception as e:
+        logger.warning("Could not init scouting tables: %s", e)
+
+    # Check if PostgreSQL has data
+    pg_has_data = False
+    try:
+        pg_has_data = has_data()
+    except Exception as e:
+        logger.warning("Could not check PostgreSQL for data: %s", e)
+
+    if not pg_has_data:
+        # First run or empty DB — sync from Google Sheets → PostgreSQL
+        logger.info("No data in PostgreSQL — syncing from Google Sheets...")
         try:
-            df = _load_google_sheet(GOOGLE_SHEET_ID, sheet_name)
-            _data[key] = df
+            sync_results = sync_all_sheets()
+            logger.info("Initial sync results: %s", sync_results)
         except Exception as e:
-            logger.error("Failed to load sheet '%s': %s", sheet_name, e)
+            logger.error("Initial sync from Google Sheets failed: %s", e)
+
+    # Load from PostgreSQL (fast ~50-200ms per table)
+    for key in SHEET_KEYS:
+        try:
+            df = load_sheet_dataframe(key)
+            _data[key] = df
+            logger.info("Loaded '%s' from PostgreSQL: %d rows", key, len(df))
+        except Exception as e:
+            logger.error("Failed to load '%s' from PostgreSQL: %s", key, e)
             _data[key] = pd.DataFrame()
 
     if "wyscout" in _data and len(_data["wyscout"]) > 0:
@@ -297,6 +293,7 @@ def _ensure_data_loaded():
 async def lifespan(app: FastAPI):
     init_db()
     # Start data loading in background — don't block app startup
+    # Now loads from PostgreSQL (fast) with auto-sync from Sheets if DB is empty
     global _data_loading
     with _data_lock:
         _data_loading = True
@@ -424,12 +421,45 @@ async def get_mappings(current_user: dict = Depends(get_current_user)):
 
 @app.post("/api/data/reload")
 async def reload_data(admin: dict = Depends(require_admin)):
+    """Reload data: sync Google Sheets → PostgreSQL, then reload into memory."""
     _data_ready.clear()
+    _endpoint_cache.clear()
+    # Sync fresh data from Sheets → PG
+    try:
+        sync_results = sync_all_sheets()
+    except Exception as e:
+        logger.error("Sync failed during reload: %s", e)
+        sync_results = {}
+    # Reload from PG into memory
     _load_all_data()
     return {
-        "message": "Dados recarregados",
+        "message": "Dados sincronizados e recarregados",
+        "sync_results": sync_results,
         "counts": {k: len(v) for k, v in _data.items()},
     }
+
+
+@app.post("/api/data/sync")
+async def sync_data(admin: dict = Depends(require_admin)):
+    """Sync Google Sheets → PostgreSQL without reloading memory."""
+    try:
+        sync_results = sync_all_sheets()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Sync failed: {e}")
+    return {
+        "message": "Dados sincronizados no banco",
+        "sync_results": sync_results,
+    }
+
+
+@app.get("/api/data/sync-status")
+async def data_sync_status(admin: dict = Depends(require_admin)):
+    """Return the last sync timestamps for each sheet."""
+    try:
+        status = get_sync_status()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not get sync status: {e}")
+    return {"sync_status": status}
 
 
 @app.get("/api/data/unmapped-clubs")
