@@ -42,7 +42,7 @@ export default function LoginPage({ onLogin, loading, error }: LoginPageProps) {
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.1, duration: 0.5 }}
             src="/3154_imgbank_1685113109.png"
-            alt="Logo Botafogo-SP"
+            alt="Logo Botafogo-SA"
             className="w-20 h-20 mx-auto mb-4 object-contain"
           />
           <h1 className="font-[var(--font-display)] text-xl font-bold tracking-tight">
