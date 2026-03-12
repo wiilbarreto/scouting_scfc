@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Shield, Lock, Mail, AlertCircle } from 'lucide-react';
+import { Lock, Mail, AlertCircle } from 'lucide-react';
 
 interface LoginPageProps {
   onLogin: (email: string, password: string) => Promise<boolean>;
@@ -37,18 +37,14 @@ export default function LoginPage({ onLogin, loading, error }: LoginPageProps) {
       >
         {/* Logo/Brand */}
         <div className="text-center mb-8">
-          <motion.div
+          <motion.img
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.1, duration: 0.5 }}
-            className="inline-flex items-center justify-center w-14 h-14 rounded-xl mb-4"
-            style={{
-              background: 'var(--color-accent-glow)',
-              border: '1px solid rgba(220, 38, 38, 0.3)',
-            }}
-          >
-            <Shield size={28} style={{ color: 'var(--color-accent)' }} />
-          </motion.div>
+            src="/3154_imgbank_1685113109.png"
+            alt="Logo Botafogo-SP"
+            className="w-20 h-20 mx-auto mb-4 object-contain"
+          />
           <h1 className="font-[var(--font-display)] text-xl font-bold tracking-tight">
             SCOUTING BFSA
           </h1>
