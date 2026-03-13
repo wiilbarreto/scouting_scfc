@@ -603,11 +603,20 @@ async def list_players(
         pos_cat = get_posicao_categoria(pos_raw) if pos_raw else None
         score = calculate_overall_score(row, pos_cat, df_all) if pos_cat else None
 
+        # Try to get photo_url from data (if column exists)
+        photo_url = None
+        for photo_col in ("photo_url", "Foto", "ImageDataURL", "image_url"):
+            val = row.get(photo_col)
+            if val is not None and pd.notna(val) and str(val).strip():
+                photo_url = str(val).strip()
+                break
+
         players.append({
             "id": int(idx) if isinstance(idx, (int, np.integer)) else hash(str(idx)) % 10**8,
             "name": str(row.get("Jogador", "")),
             "display_name": str(row.get("JogadorDisplay", row.get("Jogador", ""))),
             "team": str(row.get("Equipa", "")) if pd.notna(row.get("Equipa")) else None,
+            "club_logo": CLUB_LOGOS.get(str(row.get("Equipa", ""))) if pd.notna(row.get("Equipa")) else None,
             "position": pos_raw,
             "age": _safe_float(row.get("Idade")),
             "nationality": str(row.get("Naturalidade", "")) if pd.notna(row.get("Naturalidade")) else None,
@@ -616,6 +625,7 @@ async def list_players(
                 fallback_liga_tier=str(row.get("liga_tier", "")) if pd.notna(row.get("liga_tier")) else None,
             ),
             "minutes_played": _safe_float(row.get("Minutos jogados:")),
+            "photo_url": photo_url,
             "score": round(score, 1) if score else None,
         })
 
@@ -746,6 +756,102 @@ async def get_player_profile(
             minutes=minutes_val,
         )
 
+    # ── Análises match ──
+    analises_data = None
+    analises_df = _data.get("analises")
+    if analises_df is not None and len(analises_df) > 0 and "Nome" in analises_df.columns:
+        # Try exact match first, then fuzzy
+        ana_match = None
+        ana_mask = analises_df["Nome"].str.strip().str.lower() == jogador_name.strip().lower()
+        if ana_mask.sum() > 0:
+            ana_match = analises_df[ana_mask].iloc[0]
+        else:
+            # Fuzzy match using rapidfuzz
+            from rapidfuzz import fuzz as _fuzz
+            best_score = 0.0
+            best_idx = None
+            name_norm = jogador_name.strip().lower()
+            for aidx, arow in analises_df.iterrows():
+                aname = str(arow.get("Nome", "")).strip().lower()
+                if not aname:
+                    continue
+                sim = max(
+                    _fuzz.ratio(name_norm, aname) / 100.0,
+                    _fuzz.token_sort_ratio(name_norm, aname) / 100.0,
+                )
+                # Containment bonus
+                if name_norm in aname or aname in name_norm:
+                    sim = max(sim, 0.80)
+                if sim > best_score:
+                    best_score = sim
+                    best_idx = aidx
+            if best_idx is not None and best_score >= 0.70:
+                ana_match = analises_df.loc[best_idx]
+
+        if ana_match is not None:
+            # Score columns
+            _SCORE_COLS = ["Técnica", "Físico", "Tática", "Mental", "Nota_Desempenho", "Potencial"]
+            scores = {}
+            for col in _SCORE_COLS:
+                val = _safe_float(ana_match.get(col))
+                if val is not None:
+                    scores[col] = round(val, 2)
+
+            # Link columns
+            _LINK_COLS = ["ogol", "TM", "Vídeo", "Relatório"]
+            links = {}
+            for col in _LINK_COLS:
+                val = ana_match.get(col)
+                if val is not None and pd.notna(val) and str(val).strip():
+                    links[col] = str(val).strip()
+
+            # Text/metadata columns
+            analysis_text = None
+            val = ana_match.get("Análise")
+            if val is not None and pd.notna(val) and str(val).strip():
+                analysis_text = str(val).strip()
+
+            modelo = None
+            val = ana_match.get("Modelo")
+            if val is not None and pd.notna(val) and str(val).strip():
+                modelo = str(val).strip()
+
+            faixa_salarial = None
+            val = ana_match.get("Faixa salarial")
+            if val is None:
+                val = ana_match.get("faixa salarial")
+            if val is not None and pd.notna(val) and str(val).strip():
+                faixa_salarial = str(val).strip()
+
+            transfer_luvas = None
+            val = ana_match.get("Transfer/Luvas")
+            if val is not None and pd.notna(val) and str(val).strip():
+                transfer_luvas = str(val).strip()
+
+            analises_data = {
+                "nome": str(ana_match.get("Nome", "")),
+                "scores": scores,
+                "links": links,
+                "analysis_text": analysis_text,
+                "modelo": modelo,
+                "faixa_salarial": faixa_salarial,
+                "transfer_luvas": transfer_luvas,
+            }
+
+    # Try to get photo_url from WyScout data first, then from análises
+    photo_url = None
+    for photo_col in ("photo_url", "Foto", "ImageDataURL", "image_url"):
+        val = row.get(photo_col)
+        if val is not None and pd.notna(val) and str(val).strip():
+            photo_url = str(val).strip()
+            break
+    # Fallback: get photo from análises sheet
+    if not photo_url and analises_df is not None and len(analises_df) > 0:
+        if ana_match is not None:
+            foto_val = ana_match.get("Foto")
+            if foto_val is not None and pd.notna(foto_val) and str(foto_val).strip():
+                photo_url = str(foto_val).strip()
+
     return {
         "summary": {
             "id": idx_val,
@@ -758,6 +864,7 @@ async def get_player_profile(
             "nationality": str(row.get("Naturalidade", "")) if pd.notna(row.get("Naturalidade")) else None,
             "league": league_actual or (str(row.get("liga_tier", "")) if pd.notna(row.get("liga_tier")) else None),
             "minutes_played": _safe_float(row.get("Minutos jogados:")),
+            "photo_url": photo_url,
             "score": round(score, 1) if score else None,
         },
         "metrics": metrics,
@@ -771,6 +878,7 @@ async def get_player_profile(
         "projection_score": projection_score,
         "ssp_lambdas": SSP_LAMBDAS,
         "prediction": prediction,
+        "analises": analises_data,
     }
 
 

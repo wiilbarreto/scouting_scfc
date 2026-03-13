@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Shield,
   BarChart3,
-  Users,
   Search,
   Trophy,
   FileText,
@@ -31,7 +30,6 @@ export type TabId =
   | 'similarity'
   | 'prediction'
   | 'clusters'
-  | 'offered'
   | 'analyses';
 
 interface LayoutProps {
@@ -56,7 +54,6 @@ const NAV_SECTIONS: { title?: string; items: { id: TabId; label: string; icon: R
     title: 'MERCADO',
     items: [
       { id: 'rankings', label: 'Ranking', icon: <Trophy size={18} strokeWidth={1.5} /> },
-      { id: 'offered', label: 'Oferecidos', icon: <Users size={18} strokeWidth={1.5} /> },
       { id: 'prediction', label: 'Predicao', icon: <Target size={18} strokeWidth={1.5} /> },
     ],
   },
