@@ -14,7 +14,6 @@ import RankingsPage from './pages/RankingsPage';
 import SimilarityPage from './pages/SimilarityPage';
 import PredictionPage from './pages/PredictionPage';
 import ClustersPage from './pages/ClustersPage';
-import OfferedPage from './pages/OfferedPage';
 import AnalysesPage from './pages/AnalysesPage';
 import SkillCornerPage from './pages/SkillCornerPage';
 
@@ -48,8 +47,6 @@ function App() {
         return <PredictionPage />;
       case 'clusters':
         return <ClustersPage />;
-      case 'offered':
-        return <OfferedPage />;
       case 'analyses':
         return <AnalysesPage />;
       default:

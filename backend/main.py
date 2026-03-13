@@ -603,11 +603,20 @@ async def list_players(
         pos_cat = get_posicao_categoria(pos_raw) if pos_raw else None
         score = calculate_overall_score(row, pos_cat, df_all) if pos_cat else None
 
+        # Try to get photo_url from data (if column exists)
+        photo_url = None
+        for photo_col in ("photo_url", "Foto", "ImageDataURL", "image_url"):
+            val = row.get(photo_col)
+            if val is not None and pd.notna(val) and str(val).strip():
+                photo_url = str(val).strip()
+                break
+
         players.append({
             "id": int(idx) if isinstance(idx, (int, np.integer)) else hash(str(idx)) % 10**8,
             "name": str(row.get("Jogador", "")),
             "display_name": str(row.get("JogadorDisplay", row.get("Jogador", ""))),
             "team": str(row.get("Equipa", "")) if pd.notna(row.get("Equipa")) else None,
+            "club_logo": CLUB_LOGOS.get(str(row.get("Equipa", ""))) if pd.notna(row.get("Equipa")) else None,
             "position": pos_raw,
             "age": _safe_float(row.get("Idade")),
             "nationality": str(row.get("Naturalidade", "")) if pd.notna(row.get("Naturalidade")) else None,
@@ -616,6 +625,7 @@ async def list_players(
                 fallback_liga_tier=str(row.get("liga_tier", "")) if pd.notna(row.get("liga_tier")) else None,
             ),
             "minutes_played": _safe_float(row.get("Minutos jogados:")),
+            "photo_url": photo_url,
             "score": round(score, 1) if score else None,
         })
 
@@ -746,6 +756,14 @@ async def get_player_profile(
             minutes=minutes_val,
         )
 
+    # Try to get photo_url from data (if column exists)
+    photo_url = None
+    for photo_col in ("photo_url", "Foto", "ImageDataURL", "image_url"):
+        val = row.get(photo_col)
+        if val is not None and pd.notna(val) and str(val).strip():
+            photo_url = str(val).strip()
+            break
+
     return {
         "summary": {
             "id": idx_val,
@@ -758,6 +776,7 @@ async def get_player_profile(
             "nationality": str(row.get("Naturalidade", "")) if pd.notna(row.get("Naturalidade")) else None,
             "league": league_actual or (str(row.get("liga_tier", "")) if pd.notna(row.get("liga_tier")) else None),
             "minutes_played": _safe_float(row.get("Minutos jogados:")),
+            "photo_url": photo_url,
             "score": round(score, 1) if score else None,
         },
         "metrics": metrics,

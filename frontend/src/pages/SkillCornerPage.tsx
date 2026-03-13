@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import {
   usePlayers,
+  usePositions,
   useSkillCornerSearch,
   useSkillCornerPlayer,
   useSkillCornerCoverage,
