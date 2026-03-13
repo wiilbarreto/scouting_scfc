@@ -4,6 +4,7 @@ import { Search, Filter, ChevronRight, SlidersHorizontal, User } from 'lucide-re
 import PlayerProfile from '../components/PlayerProfile';
 import { usePlayers, usePositions, useLeagues } from '../hooks/usePlayers';
 import { cn, getScoreColor, formatNumber } from '../lib/utils';
+import { proxyImageUrl } from '../lib/api';
 import type { PlayersQueryParams } from '../types/api';
 
 function getRecommendationBadge(score: number | null): { label: string; cls: string } | null {
@@ -250,7 +251,7 @@ export default function DashboardPage() {
                     {/* Player photo (only if photo_url exists — restricted to offered/observed players) */}
                     {player.photo_url ? (
                       <img
-                        src={player.photo_url}
+                        src={proxyImageUrl(player.photo_url)!}
                         alt={player.name}
                         className="player-photo-hex"
                         onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
@@ -278,7 +279,7 @@ export default function DashboardPage() {
                         {player.team && (
                           <span className="text-[10px] truncate flex items-center gap-1" style={{ color: 'var(--color-text-muted)' }}>
                             {player.club_logo && (
-                              <img src={player.club_logo} alt="" className="w-3.5 h-3.5 object-contain inline-block" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                              <img src={proxyImageUrl(player.club_logo)!} alt="" className="w-3.5 h-3.5 object-contain inline-block" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                             )}
                             {player.team}
                           </span>
