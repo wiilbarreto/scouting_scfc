@@ -394,6 +394,37 @@ async def health_check():
     }
 
 
+@app.post("/api/admin/resync")
+async def admin_resync(current_user: dict = Depends(require_admin)):
+    """Force re-sync all sheets from Google Sheets → PostgreSQL and reload into memory."""
+    global _data
+
+    # Step 1: Sync from Google Sheets → PostgreSQL
+    sync_results = sync_all_sheets()
+
+    # Step 2: Reload from PostgreSQL into memory
+    for key in SHEET_KEYS:
+        try:
+            df = load_sheet_dataframe(key)
+            _data[key] = df
+        except Exception as e:
+            logger.error("Failed to reload '%s': %s", key, e)
+            _data[key] = pd.DataFrame()
+
+    if "wyscout" in _data and len(_data["wyscout"]) > 0:
+        _data["wyscout"] = _prepare_wyscout(_data["wyscout"])
+
+    if "skillcorner" in _data and len(_data["skillcorner"]) > 0:
+        sc_text = {"player_name", "short_name", "team_name", "position_group"}
+        _data["skillcorner"] = _coerce_numeric_columns(_data["skillcorner"], sc_text)
+        build_skillcorner_index(_data["skillcorner"])
+
+    _data_ready.set()
+
+    counts = {k: len(v) for k, v in _data.items()}
+    return {"sync_results": sync_results, "memory_counts": counts}
+
+
 # ══════════════════════════════════════════════════════════════════════
 # AUTH ENDPOINTS
 # ══════════════════════════════════════════════════════════════════════
