@@ -16,6 +16,8 @@ import {
   X,
   MapPin,
   Filter,
+  Unlink,
+  Link2,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import api, { proxyImageUrl } from '../lib/api';
@@ -278,17 +280,44 @@ type DetailTab = 'analise' | 'wyscout' | 'skillcorner';
 
 // ── WyScout Profile Mini ──
 
-function WyScoutProfileSection({ displayName, wsOverride, onOverrideChange }: { displayName: string | null; wsOverride: string | null; onOverrideChange: (v: string | null) => void }) {
-  const effectiveName = wsOverride || displayName;
+function WyScoutProfileSection({
+  displayName,
+  wsOverride,
+  onOverrideChange,
+  autoMatchCleared,
+  onClearAutoMatch,
+}: {
+  displayName: string | null;
+  wsOverride: string | null;
+  onOverrideChange: (v: string | null) => void;
+  autoMatchCleared: boolean;
+  onClearAutoMatch: () => void;
+}) {
+  // If auto match was cleared and no manual override, show empty state
+  const effectiveName = wsOverride || (autoMatchCleared ? null : displayName);
   const { data: profile, isLoading } = usePlayerProfile(effectiveName);
+
+  // Show auto match suggestion when cleared
+  const autoMatchSuggestion = autoMatchCleared && displayName && !wsOverride;
 
   if (!effectiveName) return (
     <div className="space-y-4 p-1">
       <div className="py-6 text-center" style={{ color: 'var(--color-text-muted)' }}>
         <BarChart3 size={24} className="mx-auto mb-2 opacity-30" />
-        <p className="text-xs">Nenhum match WyScout automatico encontrado</p>
+        <p className="text-xs">{autoMatchSuggestion ? 'Match automatico removido' : 'Nenhum match WyScout automatico encontrado'}</p>
         <p className="text-[10px] mt-1">Use a busca abaixo para vincular manualmente</p>
       </div>
+      {/* Show suggestion to re-link auto match */}
+      {autoMatchSuggestion && (
+        <button
+          onClick={() => onOverrideChange(displayName)}
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded text-xs transition-colors cursor-pointer hover:bg-white/5"
+          style={{ border: '1px solid rgba(59,130,246,0.3)', color: '#3b82f6' }}
+        >
+          <Link2 size={12} />
+          Restaurar match: {displayName}
+        </button>
+      )}
       <WsIdentityResolver wsOverride={wsOverride} onOverride={onOverrideChange} />
     </div>
   );
@@ -311,7 +340,7 @@ function WyScoutProfileSection({ displayName, wsOverride, onOverrideChange }: { 
 
   return (
     <div className="space-y-4 p-1">
-      {/* Summary header */}
+      {/* Summary header with unlink button */}
       <div className="flex items-center gap-3">
         {summary.photo_url ? (
           <img src={proxyImageUrl(summary.photo_url)!} alt={summary.display_name || summary.name} className="w-14 h-14 rounded-full object-cover" style={{ border: '2px solid var(--color-border-subtle)' }} />
@@ -320,7 +349,7 @@ function WyScoutProfileSection({ displayName, wsOverride, onOverrideChange }: { 
             <User size={24} style={{ color: 'var(--color-text-muted)' }} />
           </div>
         )}
-        <div>
+        <div className="flex-1">
           <div className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>{summary.display_name || summary.name}</div>
           <div className="text-[10px] flex flex-wrap gap-2" style={{ color: 'var(--color-text-muted)' }}>
             {summary.team && <span>{summary.team}</span>}
@@ -329,6 +358,19 @@ function WyScoutProfileSection({ displayName, wsOverride, onOverrideChange }: { 
             {summary.minutes_played && <span>{summary.minutes_played}min</span>}
           </div>
         </div>
+        {/* Unlink button */}
+        <button
+          onClick={() => {
+            onOverrideChange(null);
+            onClearAutoMatch();
+          }}
+          className="flex items-center gap-1 px-2 py-1.5 rounded text-[10px] transition-colors cursor-pointer hover:bg-white/5"
+          style={{ color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }}
+          title="Remover vinculo"
+        >
+          <Unlink size={11} />
+          Desvincular
+        </button>
       </div>
 
       {/* SSP + Projection */}
@@ -348,7 +390,21 @@ function WyScoutProfileSection({ displayName, wsOverride, onOverrideChange }: { 
         )}
       </div>
 
-      {/* Indices */}
+      {/* Radar chart for percentiles */}
+      {percEntries.length >= 3 && (
+        <div>
+          <div className="text-[9px] font-[var(--font-display)] tracking-[0.15em] uppercase mb-2" style={{ color: 'var(--color-text-muted)' }}>RADAR DE PERCENTIS</div>
+          <div className="max-w-[300px] mx-auto">
+            <RadarChart
+              labels={percEntries.slice(0, 12).map(([k]) => k.replace(/_/g, ' '))}
+              values={percEntries.slice(0, 12).map(([, v]) => Math.min(v, 100))}
+              size={300}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Indices as horizontal bar chart */}
       {indEntries.length > 0 && (
         <div>
           <div className="text-[9px] font-[var(--font-display)] tracking-[0.15em] uppercase mb-2" style={{ color: 'var(--color-text-muted)' }}>INDICES COMPOSTOS</div>
@@ -359,8 +415,14 @@ function WyScoutProfileSection({ displayName, wsOverride, onOverrideChange }: { 
                   <span className="text-[10px]" style={{ color: 'var(--color-text-secondary)' }}>{name}</span>
                   <span className="text-xs font-[var(--font-mono)] font-semibold" style={{ color: getScoreColor(value) }}>{value.toFixed(1)}</span>
                 </div>
-                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--color-surface-2)' }}>
-                  <div className="h-full rounded-full transition-all" style={{ background: getScoreColor(value), width: `${Math.min(value, 100)}%` }} />
+                <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--color-surface-2)' }}>
+                  <motion.div
+                    className="h-full rounded-full"
+                    style={{ background: getScoreColor(value) }}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min(value, 100)}%` }}
+                    transition={{ duration: 0.6, ease: 'easeOut' }}
+                  />
                 </div>
               </div>
             ))}
@@ -368,12 +430,12 @@ function WyScoutProfileSection({ displayName, wsOverride, onOverrideChange }: { 
         </div>
       )}
 
-      {/* Percentiles */}
+      {/* Percentiles table */}
       {percEntries.length > 0 && (
         <div>
-          <div className="text-[9px] font-[var(--font-display)] tracking-[0.15em] uppercase mb-2" style={{ color: 'var(--color-text-muted)' }}>PERCENTIS</div>
+          <div className="text-[9px] font-[var(--font-display)] tracking-[0.15em] uppercase mb-2" style={{ color: 'var(--color-text-muted)' }}>TODOS OS PERCENTIS</div>
           <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-            {percEntries.slice(0, 20).map(([name, value]) => (
+            {percEntries.map(([name, value]) => (
               <div key={name} className="flex items-center justify-between text-[10px]">
                 <span style={{ color: 'var(--color-text-secondary)' }}>{name.replace(/_/g, ' ')}</span>
                 <span className="font-[var(--font-mono)] font-semibold" style={{ color: getScoreColor(value) }}>P{Math.round(value)}</span>
@@ -401,6 +463,9 @@ function SkillCornerProfileSection({ displayName, scOverride, onOverrideChange }
   const indicesEntries = Object.entries(indices);
   const physicalEntries = Object.entries(physical);
 
+  // Find max physical value for relative bar sizing
+  const maxPhysical = physicalEntries.length > 0 ? Math.max(...physicalEntries.map(([, v]) => v)) : 1;
+
   return (
     <div className="space-y-4 p-1">
       {/* Identity resolver */}
@@ -412,9 +477,19 @@ function SkillCornerProfileSection({ displayName, scOverride, onOverrideChange }
           </span>
         </div>
         {scProfile?.found && (
-          <span className="text-[10px] px-2 py-0.5 rounded" style={{ background: 'rgba(34,197,94,0.1)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.2)' }}>
-            MATCH
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] px-2 py-0.5 rounded" style={{ background: 'rgba(34,197,94,0.1)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.2)' }}>
+              MATCH
+            </span>
+            <button
+              onClick={() => onOverrideChange(null)}
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] transition-colors cursor-pointer hover:bg-white/5"
+              style={{ color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }}
+              title="Remover vinculo"
+            >
+              <Unlink size={10} />
+            </button>
+          </div>
         )}
       </div>
 
@@ -430,30 +505,36 @@ function SkillCornerProfileSection({ displayName, scOverride, onOverrideChange }
 
       {scProfile?.found && (
         <>
-          {/* Indices */}
+          {/* Indices - Radar + bars */}
           {indicesEntries.length > 0 && (
             <div>
               <div className="text-[9px] font-[var(--font-display)] tracking-[0.15em] uppercase mb-2" style={{ color: 'var(--color-text-muted)' }}>
                 INDICES SC {scProfile.position ? `(${scProfile.position})` : ''}
               </div>
               {indicesEntries.length >= 3 && (
-                <div className="max-w-[260px] mx-auto mb-3">
+                <div className="max-w-[280px] mx-auto mb-3">
                   <RadarChart
                     labels={indicesEntries.map(([k]) => k.replace(/ index$/i, ''))}
                     values={indicesEntries.map(([, v]) => Math.min(v * 10, 100))}
-                    size={260}
+                    size={280}
                   />
                 </div>
               )}
               <div className="space-y-2">
-                {indicesEntries.map(([name, value]) => (
+                {indicesEntries.map(([name, value], i) => (
                   <div key={name}>
                     <div className="flex items-center justify-between mb-0.5">
                       <span className="text-[10px]" style={{ color: 'var(--color-text-secondary)' }}>{name.replace(/ index$/i, '')}</span>
                       <span className="text-xs font-[var(--font-mono)] font-semibold" style={{ color: getScoreColor(value * 10) }}>{value.toFixed(2)}</span>
                     </div>
-                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--color-surface-2)' }}>
-                      <div className="h-full rounded-full" style={{ background: getScoreColor(value * 10), width: `${Math.min(value * 10, 100)}%` }} />
+                    <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--color-surface-2)' }}>
+                      <motion.div
+                        className="h-full rounded-full"
+                        style={{ background: getScoreColor(value * 10) }}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.min(value * 10, 100)}%` }}
+                        transition={{ duration: 0.5, delay: i * 0.05, ease: 'easeOut' }}
+                      />
                     </div>
                   </div>
                 ))}
@@ -461,15 +542,26 @@ function SkillCornerProfileSection({ displayName, scOverride, onOverrideChange }
             </div>
           )}
 
-          {/* Physical */}
+          {/* Physical - horizontal bar chart */}
           {physicalEntries.length > 0 && (
             <div>
               <div className="text-[9px] font-[var(--font-display)] tracking-[0.15em] uppercase mb-2" style={{ color: 'var(--color-text-muted)' }}>DADOS FISICOS</div>
-              <div className="grid grid-cols-2 gap-2">
-                {physicalEntries.map(([name, value]) => (
-                  <div key={name} className="p-2 rounded" style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border-subtle)' }}>
-                    <div className="text-[9px] leading-tight" style={{ color: 'var(--color-text-muted)' }}>{name.replace(/_/g, ' ').replace(/per 90/i, '/90')}</div>
-                    <div className="text-sm font-[var(--font-mono)] font-bold" style={{ color: 'var(--color-text-primary)' }}>{value.toFixed(2)}</div>
+              <div className="space-y-2">
+                {physicalEntries.map(([name, value], i) => (
+                  <div key={name}>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="text-[10px]" style={{ color: 'var(--color-text-secondary)' }}>{name.replace(/_/g, ' ').replace(/per 90/i, '/90')}</span>
+                      <span className="text-xs font-[var(--font-mono)] font-bold" style={{ color: 'var(--color-text-primary)' }}>{value.toFixed(2)}</span>
+                    </div>
+                    <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--color-surface-2)' }}>
+                      <motion.div
+                        className="h-full rounded-full"
+                        style={{ background: 'var(--color-accent)' }}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${(value / maxPhysical) * 100}%` }}
+                        transition={{ duration: 0.5, delay: i * 0.04, ease: 'easeOut' }}
+                      />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -498,6 +590,7 @@ export default function AnalysesPage() {
   const [activeTab, setActiveTab] = useState<DetailTab>('analise');
   const [scOverride, setScOverride] = useState<string | null>(null);
   const [wsOverride, setWsOverride] = useState<string | null>(null);
+  const [wsAutoCleared, setWsAutoCleared] = useState(false);
   const [filterPosition, setFilterPosition] = useState('');
   const [filterModelo, setFilterModelo] = useState('');
   const [filterLiga, setFilterLiga] = useState('');
@@ -545,6 +638,7 @@ export default function AnalysesPage() {
   useEffect(() => {
     setScOverride(null);
     setWsOverride(null);
+    setWsAutoCleared(false);
     setActiveTab('analise');
   }, [selectedPlayer?.nome]);
 
@@ -935,12 +1029,32 @@ export default function AnalysesPage() {
                     )}
 
                     {/* WyScout/SkillCorner availability hint */}
-                    <div className="flex items-center gap-2 text-[10px] px-3 py-2 rounded-lg" style={{ background: selectedPlayer.wyscout_match ? 'rgba(34,197,94,0.06)' : 'rgba(59,130,246,0.06)', border: `1px solid ${selectedPlayer.wyscout_match ? 'rgba(34,197,94,0.15)' : 'rgba(59,130,246,0.15)'}` }}>
-                      <BarChart3 size={12} style={{ color: selectedPlayer.wyscout_match ? '#22c55e' : '#3b82f6' }} />
-                      {selectedPlayer.wyscout_match ? (
+                    <div className="flex items-center gap-2 text-[10px] px-3 py-2 rounded-lg" style={{ background: selectedPlayer.wyscout_match && !wsAutoCleared ? 'rgba(34,197,94,0.06)' : 'rgba(59,130,246,0.06)', border: `1px solid ${selectedPlayer.wyscout_match && !wsAutoCleared ? 'rgba(34,197,94,0.15)' : 'rgba(59,130,246,0.15)'}` }}>
+                      <BarChart3 size={12} style={{ color: selectedPlayer.wyscout_match && !wsAutoCleared ? '#22c55e' : '#3b82f6' }} />
+                      {selectedPlayer.wyscout_match && !wsAutoCleared ? (
                         <>
                           <span style={{ color: 'var(--color-text-muted)' }}>Match WyScout:</span>
-                          <span style={{ color: '#22c55e' }}>{selectedPlayer.wyscout_match}</span>
+                          <span className="flex-1" style={{ color: '#22c55e' }}>{wsOverride || selectedPlayer.wyscout_match}</span>
+                          <button
+                            onClick={() => { setWsAutoCleared(true); setWsOverride(null); }}
+                            className="flex items-center gap-1 px-1.5 py-0.5 rounded cursor-pointer hover:bg-white/5 transition-colors"
+                            style={{ color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }}
+                            title="Remover match automatico"
+                          >
+                            <Unlink size={10} />
+                          </button>
+                        </>
+                      ) : wsOverride ? (
+                        <>
+                          <span style={{ color: 'var(--color-text-muted)' }}>Match manual:</span>
+                          <span className="flex-1" style={{ color: '#3b82f6' }}>{wsOverride}</span>
+                          <button
+                            onClick={() => setWsOverride(null)}
+                            className="p-0.5 rounded cursor-pointer hover:bg-white/5"
+                            style={{ color: 'var(--color-text-muted)' }}
+                          >
+                            <X size={10} />
+                          </button>
                         </>
                       ) : (
                         <span style={{ color: 'var(--color-text-muted)' }}>Use as abas WyScout e SkillCorner para buscar dados do jogador</span>
@@ -963,6 +1077,8 @@ export default function AnalysesPage() {
                       displayName={selectedPlayer.wyscout_match}
                       wsOverride={wsOverride}
                       onOverrideChange={setWsOverride}
+                      autoMatchCleared={wsAutoCleared}
+                      onClearAutoMatch={() => setWsAutoCleared(true)}
                     />
                   </motion.div>
                 )}
