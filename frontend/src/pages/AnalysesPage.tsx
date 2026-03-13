@@ -60,12 +60,13 @@ const LINK_ICONS: Record<string, { label: string }> = {
 };
 
 function getAnalysisScoreColor(score: number): string {
-  // Proportional color scale for 1-5 range using HSL interpolation
-  // 1.0 = red (0°), 3.0 = yellow (45°), 5.0 = green (130°)
+  // Proportional color scale for 1-5 range
+  // 1=red, 2=orange, 3=green, 4=bright green, 5=emerald
   const clamped = Math.max(1, Math.min(5, score));
   const t = (clamped - 1) / 4; // 0 to 1
-  const hue = t * 130; // 0° (red) → 130° (green)
-  const sat = 70 + (1 - Math.abs(t - 0.5) * 2) * 15; // boost saturation in middle
+  // Shift hue so 3.0 (~t=0.5) already lands on green (120°)
+  const hue = t * 150; // 0° (red) → 150° (teal-green)
+  const sat = 70 + (1 - Math.abs(t - 0.5) * 2) * 15;
   const light = 45 + (1 - Math.abs(t - 0.5) * 2) * 5;
   return `hsl(${hue}, ${sat}%, ${light}%)`;
 }
