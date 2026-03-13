@@ -1276,6 +1276,156 @@ async def list_analyses(current_user: dict = Depends(get_current_user)):
     return {"analyses": analyses}
 
 
+@app.get("/api/analyses/players")
+async def analyses_players(
+    search: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """Return structured list of analyzed players from the análises sheet."""
+    _ensure_data_loaded()
+    df = _data.get("analises")
+    if df is None or len(df) == 0:
+        return {"players": [], "total": 0}
+
+    _SCORE_COLS = ["Técnica", "Físico", "Tática", "Mental", "Nota_Desempenho", "Potencial"]
+    _LINK_COLS = ["ogol", "TM", "Vídeo", "Relatório"]
+
+    players = []
+    for _, row in df.iterrows():
+        nome = str(row.get("Nome", "")).strip() if pd.notna(row.get("Nome")) else ""
+        if not nome:
+            continue
+
+        # Search filter
+        if search and search.strip():
+            if search.strip().lower() not in nome.lower():
+                continue
+
+        # Scores
+        scores = {}
+        for col in _SCORE_COLS:
+            val = _safe_float(row.get(col))
+            if val is not None:
+                scores[col] = round(val, 2)
+
+        # Links
+        links = {}
+        for col in _LINK_COLS:
+            val = row.get(col)
+            if val is not None and pd.notna(val) and str(val).strip():
+                links[col] = str(val).strip()
+
+        # Text fields
+        analysis_text = None
+        val = row.get("Análise")
+        if val is not None and pd.notna(val) and str(val).strip():
+            analysis_text = str(val).strip()
+
+        modelo = None
+        val = row.get("Modelo")
+        if val is not None and pd.notna(val) and str(val).strip():
+            modelo = str(val).strip()
+
+        faixa_salarial = None
+        for fc in ("Faixa salarial", "faixa salarial", "Faixa Salarial"):
+            val = row.get(fc)
+            if val is not None and pd.notna(val) and str(val).strip():
+                faixa_salarial = str(val).strip()
+                break
+
+        transfer_luvas = None
+        val = row.get("Transfer/Luvas")
+        if val is not None and pd.notna(val) and str(val).strip():
+            transfer_luvas = str(val).strip()
+
+        foto = None
+        val = row.get("Foto")
+        if val is not None and pd.notna(val) and str(val).strip():
+            foto = str(val).strip()
+
+        # Extra fields from the sheet
+        posicao = None
+        for pc in ("Posição", "Posicao", "posição", "posicao"):
+            val = row.get(pc)
+            if val is not None and pd.notna(val) and str(val).strip():
+                posicao = str(val).strip()
+                break
+
+        idade = None
+        for ac in ("Idade", "idade"):
+            val = _safe_float(row.get(ac))
+            if val is not None:
+                idade = int(val)
+                break
+
+        equipe = None
+        for tc in ("Equipe", "equipe", "Clube", "clube", "Time", "time"):
+            val = row.get(tc)
+            if val is not None and pd.notna(val) and str(val).strip():
+                equipe = str(val).strip()
+                break
+
+        liga = None
+        for lc in ("Liga", "liga", "Campeonato", "campeonato"):
+            val = row.get(lc)
+            if val is not None and pd.notna(val) and str(val).strip():
+                liga = str(val).strip()
+                break
+
+        # Try to find a WyScout match for this player
+        wyscout_match = None
+        ws_df = _data.get("wyscout")
+        if ws_df is not None and len(ws_df) > 0:
+            # Try exact match on JogadorDisplay or Jogador
+            for col_name in ("JogadorDisplay", "Jogador"):
+                if col_name in ws_df.columns:
+                    mask = ws_df[col_name].str.strip().str.lower() == nome.strip().lower()
+                    if mask.sum() > 0:
+                        ws_row = ws_df[mask].iloc[0]
+                        wyscout_match = str(ws_row.get("JogadorDisplay", ws_row.get("Jogador", ""))).strip()
+                        break
+            # Fuzzy fallback
+            if not wyscout_match:
+                from rapidfuzz import fuzz as _fuzz
+                best_score = 0.0
+                best_name = None
+                name_norm = nome.strip().lower()
+                search_col = "JogadorDisplay" if "JogadorDisplay" in ws_df.columns else "Jogador"
+                for _, ws_row in ws_df.iterrows():
+                    ws_name = str(ws_row.get(search_col, "")).strip().lower()
+                    if not ws_name:
+                        continue
+                    sim = max(
+                        _fuzz.ratio(name_norm, ws_name) / 100.0,
+                        _fuzz.token_sort_ratio(name_norm, ws_name) / 100.0,
+                    )
+                    if name_norm in ws_name or ws_name in name_norm:
+                        sim = max(sim, 0.85)
+                    if sim > best_score:
+                        best_score = sim
+                        best_name = str(ws_row.get("JogadorDisplay", ws_row.get("Jogador", ""))).strip()
+                if best_name and best_score >= 0.70:
+                    wyscout_match = best_name
+
+        players.append({
+            "nome": nome,
+            "foto": foto,
+            "posicao": posicao,
+            "idade": idade,
+            "equipe": equipe,
+            "liga": liga,
+            "modelo": modelo,
+            "scores": scores,
+            "links": links,
+            "analysis_text": analysis_text,
+            "faixa_salarial": faixa_salarial,
+            "transfer_luvas": transfer_luvas,
+            "wyscout_match": wyscout_match,
+        })
+
+    return {"players": players, "total": len(players)}
+
+
 # ══════════════════════════════════════════════════════════════════════
 # INDICES (detailed index breakdown for a player)
 # ══════════════════════════════════════════════════════════════════════
