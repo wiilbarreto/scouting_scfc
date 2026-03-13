@@ -1382,8 +1382,9 @@ async def analyses_players(
         _LINK_COLS = ["ogol", "TM", "Vídeo", "Relatório"]
 
         # Pre-compute WyScout name lookup for fast matching
-        ws_exact_map: Dict[str, str] = {}  # lowercase name → display name
-        ws_names_list: list = []  # [(lowercase_name, display_name), ...]
+        # Store ALL candidates per name so we can disambiguate duplicates
+        ws_candidates: Dict[str, list] = {}  # lowercase name → [{display, team, position, age, minutes}, ...]
+        ws_names_list: list = []  # [(lowercase_name, display_name, team, position, minutes), ...]
         ws_df = _data.get("wyscout")
         if ws_df is not None and len(ws_df) > 0:
             search_col = "JogadorDisplay" if "JogadorDisplay" in ws_df.columns else "Jogador"
@@ -1398,8 +1399,13 @@ async def analyses_players(
                     if raw is not None and pd.notna(raw) and str(raw).strip():
                         display = str(raw).strip()
                 if display:
-                    ws_exact_map[display.lower()] = display
-                    ws_names_list.append((display.lower(), display))
+                    ws_team = str(ws_row.get("Equipa", "")).strip() if pd.notna(ws_row.get("Equipa")) else ""
+                    ws_pos = str(ws_row.get("Posição", "")).strip() if pd.notna(ws_row.get("Posição")) else ""
+                    ws_age = _safe_float(ws_row.get("Idade"))
+                    ws_min = _safe_float(ws_row.get("Minutos")) or _safe_float(ws_row.get("Min"))
+                    entry = {"display": display, "team": ws_team, "position": ws_pos, "age": ws_age, "minutes": ws_min or 0}
+                    ws_candidates.setdefault(display.lower(), []).append(entry)
+                    ws_names_list.append((display.lower(), display, ws_team, ws_pos, ws_min or 0))
             # Also index by Jogador (without team) for exact match
             if "Jogador" in ws_df.columns and search_col != "Jogador":
                 for _, ws_row in ws_df.iterrows():
@@ -1408,7 +1414,47 @@ async def analyses_players(
                         jog_str = str(jog).strip()
                         disp = ws_row.get("JogadorDisplay")
                         disp_str = str(disp).strip() if disp is not None and pd.notna(disp) and str(disp).strip() else jog_str
-                        ws_exact_map[jog_str.lower()] = disp_str
+                        ws_team = str(ws_row.get("Equipa", "")).strip() if pd.notna(ws_row.get("Equipa")) else ""
+                        ws_pos = str(ws_row.get("Posição", "")).strip() if pd.notna(ws_row.get("Posição")) else ""
+                        ws_age = _safe_float(ws_row.get("Idade"))
+                        ws_min = _safe_float(ws_row.get("Minutos")) or _safe_float(ws_row.get("Min"))
+                        entry = {"display": disp_str, "team": ws_team, "position": ws_pos, "age": ws_age, "minutes": ws_min or 0}
+                        ws_candidates.setdefault(jog_str.lower(), []).append(entry)
+
+        def _pick_best_candidate(candidates: list, player_team: str | None, player_pos: str | None, player_age: int | None) -> str:
+            """Pick best WyScout candidate using team, position, age matching and minutes played."""
+            if len(candidates) == 1:
+                return candidates[0]["display"]
+            # Score each candidate
+            scored = []
+            pt = (player_team or "").lower()
+            pp = (player_pos or "").lower()
+            for c in candidates:
+                score = 0.0
+                ct = c["team"].lower()
+                cp = c["position"].lower()
+                # Team match is strongest signal
+                if pt and ct:
+                    from rapidfuzz import fuzz as _fuzz2
+                    team_sim = _fuzz2.ratio(pt, ct) / 100.0
+                    if team_sim > 0.7:
+                        score += 30 * team_sim
+                # Position match
+                if pp and cp:
+                    if pp in cp or cp in pp:
+                        score += 15
+                # Age proximity (within 2 years is good)
+                if player_age and c["age"]:
+                    age_diff = abs(player_age - c["age"])
+                    if age_diff <= 1:
+                        score += 10
+                    elif age_diff <= 3:
+                        score += 5
+                # More minutes = more likely the right player (tiebreaker)
+                score += min(c["minutes"] / 500, 5)
+                scored.append((score, c["display"]))
+            scored.sort(key=lambda x: -x[0])
+            return scored[0][1]
 
         players = []
         for _, row in df.iterrows():
@@ -1500,31 +1546,35 @@ async def analyses_players(
                         perfil = str(val).strip()
                         break
 
-                # WyScout match using pre-computed lookup
+                # WyScout match using pre-computed lookup with disambiguation
                 wyscout_match = None
                 if ws_names_list:
                     nome_lower = nome.strip().lower()
-                    # Exact match first
-                    if nome_lower in ws_exact_map:
-                        wyscout_match = ws_exact_map[nome_lower]
+                    # Exact match first — use candidates for disambiguation
+                    if nome_lower in ws_candidates:
+                        candidates = ws_candidates[nome_lower]
+                        wyscout_match = _pick_best_candidate(candidates, equipe, posicao, idade)
                     else:
                         # Fuzzy fallback using pre-computed list (no iterrows)
                         try:
                             from rapidfuzz import fuzz as _fuzz
                             best_score = 0.0
-                            best_name = None
-                            for ws_lower, ws_display in ws_names_list:
+                            best_candidates: list = []
+                            for ws_lower, ws_display, ws_team, ws_pos, ws_min in ws_names_list:
                                 sim = max(
                                     _fuzz.ratio(nome_lower, ws_lower) / 100.0,
                                     _fuzz.token_sort_ratio(nome_lower, ws_lower) / 100.0,
                                 )
                                 if nome_lower in ws_lower or ws_lower in nome_lower:
                                     sim = max(sim, 0.85)
-                                if sim > best_score:
-                                    best_score = sim
-                                    best_name = ws_display
-                            if best_name and best_score >= 0.70:
-                                wyscout_match = best_name
+                                if sim >= 0.70:
+                                    if sim > best_score:
+                                        best_score = sim
+                                        best_candidates = [{"display": ws_display, "team": ws_team, "position": ws_pos, "age": None, "minutes": ws_min}]
+                                    elif sim == best_score:
+                                        best_candidates.append({"display": ws_display, "team": ws_team, "position": ws_pos, "age": None, "minutes": ws_min})
+                            if best_candidates:
+                                wyscout_match = _pick_best_candidate(best_candidates, equipe, posicao, idade)
                         except Exception as e:
                             logger.warning("Fuzzy match failed for '%s': %s", nome, e)
 
