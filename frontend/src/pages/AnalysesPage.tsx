@@ -18,7 +18,7 @@ import {
   Filter,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import api from '../lib/api';
+import api, { proxyImageUrl } from '../lib/api';
 import { getScoreColor } from '../lib/utils';
 import { usePlayerProfile, useSkillCornerPlayer, useSkillCornerSearch } from '../hooks/usePlayers';
 import RadarChart from '../components/RadarChart';
@@ -202,7 +202,7 @@ function WyScoutProfileSection({ displayName }: { displayName: string }) {
       {/* Summary header */}
       <div className="flex items-center gap-3">
         {summary.photo_url ? (
-          <img src={summary.photo_url} alt={summary.display_name || summary.name} className="w-14 h-14 rounded-full object-cover" style={{ border: '2px solid var(--color-border-subtle)' }} />
+          <img src={proxyImageUrl(summary.photo_url)!} alt={summary.display_name || summary.name} className="w-14 h-14 rounded-full object-cover" style={{ border: '2px solid var(--color-border-subtle)' }} />
         ) : (
           <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: 'var(--color-surface-2)', border: '2px solid var(--color-border-subtle)' }}>
             <User size={24} style={{ color: 'var(--color-text-muted)' }} />
@@ -618,7 +618,7 @@ export default function AnalysesPage() {
                 >
                   {/* Photo */}
                   {p.foto ? (
-                    <img src={p.foto} alt={p.nome} className="w-10 h-10 rounded-full object-cover shrink-0" style={{ border: '2px solid var(--color-border-subtle)' }} />
+                    <img src={proxyImageUrl(p.foto)!} alt={p.nome} className="w-10 h-10 rounded-full object-cover shrink-0" style={{ border: '2px solid var(--color-border-subtle)' }} />
                   ) : (
                     <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--color-surface-2)', border: '2px solid var(--color-border-subtle)' }}>
                       <User size={16} style={{ color: 'var(--color-text-muted)' }} />
@@ -670,7 +670,7 @@ export default function AnalysesPage() {
             {/* Player header */}
             <div className="p-5 flex items-center gap-4" style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
               {selectedPlayer.foto ? (
-                <img src={selectedPlayer.foto} alt={selectedPlayer.nome} className="w-16 h-16 rounded-full object-cover" style={{ border: '2px solid var(--color-border-subtle)' }} />
+                <img src={proxyImageUrl(selectedPlayer.foto)!} alt={selectedPlayer.nome} className="w-16 h-16 rounded-full object-cover" style={{ border: '2px solid var(--color-border-subtle)' }} />
               ) : (
                 <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: 'var(--color-surface-2)', border: '2px solid var(--color-border-subtle)' }}>
                   <User size={28} style={{ color: 'var(--color-text-muted)' }} />

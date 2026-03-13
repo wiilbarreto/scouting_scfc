@@ -14,8 +14,10 @@ from typing import Optional, List, Dict, Any
 
 import numpy as np
 import pandas as pd
+import aiohttp
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 
 from auth import (
     authenticate_user,
@@ -2188,6 +2190,55 @@ async def get_skillcorner_coverage(current_user: dict = Depends(get_current_user
         "covered_leagues": sorted(SKILLCORNER_COVERED_LEAGUES),
         "description": "Dados SkillCorner disponíveis apenas para ligas sul-americanas e Liga Portugal.",
     }
+
+
+# ── Image Proxy ───────────────────────────────────────────────────────
+
+_ALLOWED_IMAGE_HOSTS = {
+    "api.sofascore.com",
+    "images.fotmob.com",
+}
+
+# Simple in-memory cache for proxied images (URL → (content_type, bytes))
+_image_cache: Dict[str, tuple] = {}
+_IMAGE_CACHE_MAX = 2000
+
+
+@app.get("/api/image-proxy")
+async def image_proxy(url: str):
+    """Proxy external image URLs to avoid CORS/hotlink 403 errors."""
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    if parsed.hostname not in _ALLOWED_IMAGE_HOSTS:
+        raise HTTPException(status_code=400, detail="Domain not allowed")
+
+    # Check cache
+    if url in _image_cache:
+        content_type, data = _image_cache[url]
+        return Response(content=data, media_type=content_type,
+                        headers={"Cache-Control": "public, max-age=86400"})
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                url,
+                timeout=aiohttp.ClientTimeout(total=10),
+                headers={"User-Agent": "Mozilla/5.0 (compatible; ScoutingBot/1.0)"},
+            ) as resp:
+                if resp.status != 200:
+                    raise HTTPException(status_code=resp.status, detail="Upstream image fetch failed")
+                data = await resp.read()
+                content_type = resp.content_type or "image/png"
+    except aiohttp.ClientError:
+        raise HTTPException(status_code=502, detail="Failed to fetch image")
+
+    # Cache the result
+    if len(_image_cache) < _IMAGE_CACHE_MAX:
+        _image_cache[url] = (content_type, data)
+
+    return Response(content=data, media_type=content_type,
+                    headers={"Cache-Control": "public, max-age=86400"})
 
 
 # ── Run ───────────────────────────────────────────────────────────────

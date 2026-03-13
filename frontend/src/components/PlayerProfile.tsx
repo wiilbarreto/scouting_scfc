@@ -21,6 +21,7 @@ import RadarChart from './RadarChart';
 import SkeletonProfile from './SkeletonProfile';
 import { usePlayerProfile, useRadarData, useSkillCornerSearch } from '../hooks/usePlayers';
 import { cn, getScoreClass, getScoreColor, getPerformanceLabel, formatNumber } from '../lib/utils';
+import { proxyImageUrl } from '../lib/api';
 
 interface PlayerProfileProps {
   playerDisplayName: string | null;
@@ -177,7 +178,7 @@ export default function PlayerProfile({ playerDisplayName, onClose }: PlayerProf
               {/* Photo (only if photo_url exists — restricted to offered/observed players) */}
               {summary.photo_url ? (
                 <img
-                  src={summary.photo_url}
+                  src={proxyImageUrl(summary.photo_url)!}
                   alt={summary.name}
                   className="player-photo-hex-lg"
                   onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
@@ -194,7 +195,7 @@ export default function PlayerProfile({ playerDisplayName, onClose }: PlayerProf
                 {summary.team && (
                   <p className="flex items-center gap-1.5 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                     {summary.club_logo ? (
-                      <img src={summary.club_logo} alt={summary.team} className="w-5 h-5 object-contain" />
+                      <img src={proxyImageUrl(summary.club_logo)!} alt={summary.team} className="w-5 h-5 object-contain" />
                     ) : (
                       <Shield size={13} strokeWidth={1.5} />
                     )}
