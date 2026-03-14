@@ -38,6 +38,127 @@
   --color-border-active: rgba(255, 255, 255, 0.12);
 }
 
+/* ── Light theme overrides ────────────────────────────────────────── */
+
+[data-theme="light"] {
+  --color-void: #F5F5F7;
+  --color-surface-0: #EEEEF0;
+  --color-surface-1: #E8E8EC;
+  --color-surface-2: #DFDFE3;
+  --color-surface-3: #D4D4D8;
+
+  --color-accent: #C8050F;
+  --color-accent-dim: #A00410;
+  --color-accent-glow: rgba(200, 5, 15, 0.10);
+
+  --color-text-primary: #18181B;
+  --color-text-secondary: #52525B;
+  --color-text-muted: #A1A1AA;
+
+  --color-border-subtle: rgba(0, 0, 0, 0.08);
+  --color-border-active: rgba(0, 0, 0, 0.14);
+}
+
+[data-theme="light"] body {
+  background-color: var(--color-void);
+  color: var(--color-text-primary);
+}
+
+[data-theme="light"] .noise-overlay {
+  opacity: 0.015;
+}
+
+[data-theme="light"] .card-glass {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.75) 0%, rgba(245, 245, 247, 0.6) 100%);
+  border-color: rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .card-glass-accent {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.75) 0%, rgba(245, 245, 247, 0.6) 100%);
+  border-color: rgba(200, 5, 15, 0.15);
+  box-shadow: 0 0 24px rgba(200, 5, 15, 0.04);
+}
+
+[data-theme="light"] .skeleton {
+  background: linear-gradient(90deg, var(--color-surface-1) 0%, var(--color-surface-2) 40%, var(--color-surface-3) 50%, var(--color-surface-2) 60%, var(--color-surface-1) 100%);
+  background-size: 200% 100%;
+}
+
+[data-theme="light"] .table-zebra tbody tr:nth-child(even) {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: var(--color-surface-3);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* ── Score badges — light variants ───────────────────────────────── */
+
+[data-theme="light"] .score-elite { background: rgba(34, 197, 94, 0.10); border-color: rgba(34, 197, 94, 0.20); }
+[data-theme="light"] .score-above { background: rgba(234, 179, 8, 0.10); border-color: rgba(234, 179, 8, 0.20); }
+[data-theme="light"] .score-average { background: rgba(249, 115, 22, 0.10); border-color: rgba(249, 115, 22, 0.20); }
+[data-theme="light"] .score-below { background: rgba(239, 68, 68, 0.10); border-color: rgba(239, 68, 68, 0.20); }
+
+/* ── Glass panels — theme-aware ──────────────────────────────────── */
+
+.glass-panel {
+  background: linear-gradient(145deg, rgba(22,22,22,0.9) 0%, rgba(16,16,16,0.85) 100%);
+  border: 1px solid rgba(255,255,255,0.06);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 16px;
+}
+
+.glass-panel-sm {
+  background: linear-gradient(145deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%);
+  border: 1px solid rgba(255,255,255,0.06);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 12px;
+}
+
+.glass-inset {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.04);
+}
+
+.glass-divider {
+  background: rgba(255,255,255,0.1);
+}
+
+[data-theme="light"] .glass-panel {
+  background: linear-gradient(145deg, rgba(255,255,255,0.85) 0%, rgba(248,248,250,0.8) 100%);
+  border-color: rgba(0,0,0,0.08);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+
+[data-theme="light"] .glass-panel-sm {
+  background: linear-gradient(145deg, rgba(0,0,0,0.02) 0%, rgba(0,0,0,0.01) 100%);
+  border-color: rgba(0,0,0,0.06);
+}
+
+[data-theme="light"] .glass-inset {
+  background: rgba(0,0,0,0.02);
+  border-color: rgba(0,0,0,0.05);
+}
+
+[data-theme="light"] .glass-divider {
+  background: rgba(0,0,0,0.1);
+}
+
+/* Hover states for glass */
+.glass-hover:hover {
+  background: rgba(255,255,255,0.02);
+}
+[data-theme="light"] .glass-hover:hover {
+  background: rgba(0,0,0,0.02);
+}
+
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--color-surface-3) transparent;
