@@ -16,8 +16,11 @@ import {
   FileBarChart,
   Activity,
   Eye,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import type { User } from '../types/api';
+import { useTheme } from '../contexts/ThemeContext';
 
 export type TabId =
   | 'dashboard'
@@ -79,6 +82,7 @@ const ALL_NAV_ITEMS = NAV_SECTIONS.flatMap((s) => s.items);
 
 export default function Layout({ user, activeTab, onTabChange, onLogout, children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <div className="min-h-screen flex relative">
@@ -89,7 +93,7 @@ export default function Layout({ user, activeTab, onTabChange, onLogout, childre
         className="hidden lg:flex flex-col fixed top-0 left-0 h-screen z-30"
         style={{
           width: '280px',
-          background: 'rgba(14, 14, 14, 0.85)',
+          background: theme === 'dark' ? 'rgba(14, 14, 14, 0.85)' : 'rgba(255, 255, 255, 0.82)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
           borderRight: '1px solid var(--color-border-subtle)',
@@ -171,14 +175,24 @@ export default function Layout({ user, activeTab, onTabChange, onLogout, childre
               {user.role}
             </div>
           </div>
-          <button
-            onClick={onLogout}
-            className="p-2 rounded-lg transition-colors hover:bg-white/5 cursor-pointer"
-            style={{ color: 'var(--color-text-muted)' }}
-            title="Sair"
-          >
-            <LogOut size={16} strokeWidth={1.5} />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-lg transition-colors hover:bg-white/5 cursor-pointer"
+              style={{ color: 'var(--color-text-muted)' }}
+              title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
+            >
+              {theme === 'dark' ? <Sun size={16} strokeWidth={1.5} /> : <Moon size={16} strokeWidth={1.5} />}
+            </button>
+            <button
+              onClick={onLogout}
+              className="p-2 rounded-lg transition-colors hover:bg-white/5 cursor-pointer"
+              style={{ color: 'var(--color-text-muted)' }}
+              title="Sair"
+            >
+              <LogOut size={16} strokeWidth={1.5} />
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -186,7 +200,7 @@ export default function Layout({ user, activeTab, onTabChange, onLogout, childre
       <div
         className="lg:hidden fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-4 py-3"
         style={{
-          background: 'rgba(14, 14, 14, 0.9)',
+          background: theme === 'dark' ? 'rgba(14, 14, 14, 0.9)' : 'rgba(255, 255, 255, 0.88)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
           borderBottom: '1px solid var(--color-border-subtle)',
@@ -194,15 +208,25 @@ export default function Layout({ user, activeTab, onTabChange, onLogout, childre
       >
         <div className="flex items-center gap-2">
           <Shield size={16} strokeWidth={1.5} style={{ color: 'var(--color-accent)' }} />
-          <span className="font-[var(--font-display)] text-sm font-bold">SCOUTING</span>
+          <span className="font-[var(--font-display)] text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>SCOUTING</span>
         </div>
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="p-1.5 cursor-pointer"
-          style={{ color: 'var(--color-text-secondary)' }}
-        >
-          {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={toggleTheme}
+            className="p-1.5 cursor-pointer"
+            style={{ color: 'var(--color-text-secondary)' }}
+            title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
+          >
+            {theme === 'dark' ? <Sun size={16} strokeWidth={1.5} /> : <Moon size={16} strokeWidth={1.5} />}
+          </button>
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="p-1.5 cursor-pointer"
+            style={{ color: 'var(--color-text-secondary)' }}
+          >
+            {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
+          </button>
+        </div>
       </div>
 
       {/* Mobile sidebar overlay */}
@@ -224,7 +248,7 @@ export default function Layout({ user, activeTab, onTabChange, onLogout, childre
               className="fixed top-0 left-0 bottom-0 z-50 flex flex-col lg:hidden"
               style={{
                 width: '280px',
-                background: 'rgba(14, 14, 14, 0.95)',
+                background: theme === 'dark' ? 'rgba(14, 14, 14, 0.95)' : 'rgba(255, 255, 255, 0.95)',
                 backdropFilter: 'blur(20px)',
                 WebkitBackdropFilter: 'blur(20px)',
                 borderRight: '1px solid var(--color-border-subtle)',

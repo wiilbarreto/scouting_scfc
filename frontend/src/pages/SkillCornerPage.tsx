@@ -32,7 +32,7 @@ function CoverageBanner({ covered, league }: { covered: boolean; league: string 
       animate={{ opacity: 1, y: 0 }}
       className="flex items-start gap-3 px-5 py-4 rounded-2xl"
       style={{
-        background: 'linear-gradient(135deg, rgba(234, 179, 8, 0.06) 0%, rgba(234, 179, 8, 0.02) 100%)',
+        background: 'rgba(234, 179, 8, 0.06)',
         border: '1px solid rgba(234, 179, 8, 0.15)',
         backdropFilter: 'blur(12px)',
       }}
@@ -62,16 +62,8 @@ function MetricCard({ name, value, percentile, delay }: { name: string; value: n
       initial={{ opacity: 0, y: 12, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ delay, type: 'spring', stiffness: 300, damping: 30 }}
-      className="relative group"
     >
-      <div
-        className="p-4 rounded-xl h-full transition-all duration-300"
-        style={{
-          background: 'linear-gradient(145deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%)',
-          border: '1px solid rgba(255,255,255,0.06)',
-          backdropFilter: 'blur(8px)',
-        }}
-      >
+      <div className="glass-panel-sm p-4 h-full transition-all duration-300">
         {/* Metric name */}
         <div
           className="text-[10px] uppercase tracking-widest mb-3 leading-tight font-medium"
@@ -103,7 +95,7 @@ function MetricCard({ name, value, percentile, delay }: { name: string; value: n
           <div className="mt-3">
             <div
               className="h-1 rounded-full overflow-hidden"
-              style={{ background: 'rgba(255,255,255,0.06)' }}
+              style={{ background: 'var(--color-surface-2)' }}
             >
               <motion.div
                 className="h-full rounded-full"
@@ -142,11 +134,9 @@ function IdentityResolver({
           onClick={() => setOpen(!open)}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 cursor-pointer"
           style={{
-            background: open
-              ? 'linear-gradient(135deg, rgba(227,6,19,0.15), rgba(227,6,19,0.05))'
-              : 'rgba(255,255,255,0.04)',
+            background: open ? 'var(--color-accent-glow)' : 'var(--color-surface-2)',
             color: open ? 'var(--color-accent)' : 'var(--color-text-muted)',
-            border: `1px solid ${open ? 'rgba(227,6,19,0.25)' : 'rgba(255,255,255,0.06)'}`,
+            border: `1px solid ${open ? 'rgba(227,6,19,0.25)' : 'var(--color-border-subtle)'}`,
             fontFamily: 'var(--font-display)',
           }}
         >
@@ -193,8 +183,8 @@ function IdentityResolver({
               onChange={(e) => setQuery(e.target.value)}
               className="w-full px-4 py-2.5 rounded-xl text-xs outline-none transition-colors"
               style={{
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.08)',
+                background: 'var(--color-surface-1)',
+                border: '1px solid var(--color-border-subtle)',
                 color: 'var(--color-text-primary)',
                 fontFamily: 'var(--font-body)',
               }}
@@ -202,12 +192,7 @@ function IdentityResolver({
             />
             {results && results.length > 0 && (
               <div
-                className="mt-1.5 rounded-xl overflow-hidden max-h-48 overflow-y-auto"
-                style={{
-                  background: 'rgba(14,14,14,0.95)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  backdropFilter: 'blur(20px)',
-                }}
+                className="glass-panel mt-1.5 overflow-hidden max-h-48 overflow-y-auto"
               >
                 {results.map((r) => (
                   <button
@@ -217,8 +202,8 @@ function IdentityResolver({
                       setOpen(false);
                       setQuery('');
                     }}
-                    className="w-full text-left px-4 py-2.5 text-xs hover:bg-white/5 transition-colors cursor-pointer flex items-center justify-between"
-                    style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+                    className="w-full text-left px-4 py-2.5 text-xs glass-hover transition-colors cursor-pointer flex items-center justify-between"
+                    style={{ borderBottom: '1px solid var(--color-border-subtle)' }}
                   >
                     <span style={{ color: 'var(--color-text-primary)', fontFamily: 'var(--font-display)', fontWeight: 500 }}>{r.player_name}</span>
                     <span className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
@@ -260,12 +245,12 @@ function SectionHeader({
   return (
     <button
       onClick={onToggle}
-      className="w-full flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-white/[0.02] transition-all duration-200"
+      className="w-full flex items-center justify-between px-6 py-4 cursor-pointer glass-hover transition-all duration-200"
     >
       <div className="flex items-center gap-3">
         <div
           className="w-7 h-7 rounded-lg flex items-center justify-center"
-          style={{ background: 'rgba(255,255,255,0.04)' }}
+          style={{ background: 'var(--color-surface-2)' }}
         >
           {expanded ? <ChevronDown size={13} style={{ color: 'var(--color-text-secondary)' }} /> : <ChevronRight size={13} style={{ color: 'var(--color-text-muted)' }} />}
         </div>
@@ -283,7 +268,7 @@ function SectionHeader({
         className="text-[10px] font-medium px-2.5 py-1 rounded-lg"
         style={{
           color: 'var(--color-text-muted)',
-          background: 'rgba(255,255,255,0.03)',
+          background: 'var(--color-surface-2)',
           fontFamily: 'var(--font-mono)',
         }}
       >
@@ -352,17 +337,12 @@ export default function SkillCornerPage() {
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-2xl px-7 py-6"
-        style={{
-          background: 'linear-gradient(135deg, rgba(18,18,18,0.95) 0%, rgba(10,10,10,0.9) 50%, rgba(20,20,20,0.85) 100%)',
-          border: '1px solid rgba(255,255,255,0.06)',
-          backdropFilter: 'blur(20px)',
-        }}
+        className="glass-panel relative overflow-hidden px-7 py-6"
       >
         {/* Subtle star accent */}
         <div
           className="absolute -top-8 -right-8 opacity-[0.03]"
-          style={{ fontSize: '120px', lineHeight: 1, color: '#fff', fontFamily: 'serif' }}
+          style={{ fontSize: '120px', lineHeight: 1, color: 'var(--color-text-primary)', fontFamily: 'serif' }}
         >
           ★
         </div>
@@ -373,7 +353,7 @@ export default function SkillCornerPage() {
               <div
                 className="w-8 h-8 rounded-xl flex items-center justify-center"
                 style={{
-                  background: 'linear-gradient(135deg, rgba(227,6,19,0.2), rgba(227,6,19,0.05))',
+                  background: 'var(--color-accent-glow)',
                   border: '1px solid rgba(227,6,19,0.2)',
                 }}
               >
@@ -408,7 +388,7 @@ export default function SkillCornerPage() {
         transition={{ delay: 0.1 }}
         className="flex items-start gap-3 px-5 py-4 rounded-2xl"
         style={{
-          background: 'linear-gradient(135deg, rgba(59,130,246,0.04) 0%, rgba(59,130,246,0.01) 100%)',
+          background: 'rgba(59,130,246,0.04)',
           border: '1px solid rgba(59,130,246,0.1)',
           backdropFilter: 'blur(12px)',
         }}
@@ -430,12 +410,7 @@ export default function SkillCornerPage() {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15 }}
-        className="rounded-2xl p-6"
-        style={{
-          background: 'linear-gradient(145deg, rgba(22,22,22,0.9) 0%, rgba(16,16,16,0.85) 100%)',
-          border: '1px solid rgba(255,255,255,0.06)',
-          backdropFilter: 'blur(20px)',
-        }}
+        className="glass-panel p-6"
       >
         <div>
           <label
@@ -453,23 +428,18 @@ export default function SkillCornerPage() {
               value={search}
               onChange={(e) => handleSearchChange(e.target.value)}
               placeholder="Digite o nome do jogador..."
-              className="w-full pl-10 pr-4 py-3 rounded-xl text-sm outline-none transition-all duration-200 focus:ring-1"
+              className="w-full pl-10 pr-4 py-3 rounded-xl text-sm outline-none transition-all duration-200"
               style={{
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.06)',
+                background: 'var(--color-surface-1)',
+                border: '1px solid var(--color-border-subtle)',
                 color: 'var(--color-text-primary)',
                 fontFamily: 'var(--font-body)',
               }}
             />
             {debouncedSearch.length >= 2 && !selectedPlayer && players.length > 0 && (
               <div
-                className="absolute top-full left-0 right-0 mt-2 rounded-xl overflow-hidden z-50 max-h-48 overflow-y-auto"
-                style={{
-                  background: 'rgba(14,14,14,0.97)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  backdropFilter: 'blur(24px)',
-                  boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-                }}
+                className="glass-panel absolute top-full left-0 right-0 mt-2 overflow-hidden z-50 max-h-48 overflow-y-auto"
+                style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}
               >
                 {players.map((p, i) => (
                   <button
@@ -479,9 +449,9 @@ export default function SkillCornerPage() {
                       setSearch(p.display_name || p.name);
                       setDebouncedSearch('');
                     }}
-                    className="w-full text-left px-4 py-3 text-sm transition-colors hover:bg-white/5 cursor-pointer"
+                    className="w-full text-left px-4 py-3 text-sm transition-colors glass-hover cursor-pointer"
                     style={{
-                      borderBottom: '1px solid rgba(255,255,255,0.04)',
+                      borderBottom: '1px solid var(--color-border-subtle)',
                       color: 'var(--color-text-primary)',
                     }}
                   >
@@ -499,13 +469,7 @@ export default function SkillCornerPage() {
 
       {/* ── Loading ── */}
       {isLoading && (
-        <div
-          className="rounded-2xl p-8 text-center"
-          style={{
-            background: 'linear-gradient(145deg, rgba(22,22,22,0.9) 0%, rgba(16,16,16,0.85) 100%)',
-            border: '1px solid rgba(255,255,255,0.06)',
-          }}
-        >
+        <div className="glass-panel p-8 text-center">
           <div className="skeleton h-48 rounded-xl" />
         </div>
       )}
@@ -521,18 +485,13 @@ export default function SkillCornerPage() {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="rounded-2xl p-6"
-            style={{
-              background: 'linear-gradient(145deg, rgba(22,22,22,0.9) 0%, rgba(16,16,16,0.85) 100%)',
-              border: '1px solid rgba(255,255,255,0.06)',
-              backdropFilter: 'blur(20px)',
-            }}
+            className="glass-panel p-6"
           >
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2.5">
                 <div
                   className="w-6 h-6 rounded-lg flex items-center justify-center"
-                  style={{ background: 'rgba(255,255,255,0.04)' }}
+                  style={{ background: 'var(--color-surface-2)' }}
                 >
                   <MapPin size={12} style={{ color: 'var(--color-accent)' }} />
                 </div>
@@ -574,20 +533,14 @@ export default function SkillCornerPage() {
             </div>
 
             {scProfile.found && (
-              <div
-                className="flex flex-wrap items-center gap-3 mb-4 px-4 py-3 rounded-xl"
-                style={{
-                  background: 'rgba(255,255,255,0.02)',
-                  border: '1px solid rgba(255,255,255,0.04)',
-                }}
-              >
+              <div className="glass-inset flex flex-wrap items-center gap-3 mb-4 px-4 py-3 rounded-xl">
                 <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>SC:</span>
                 <span className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)', fontFamily: 'var(--font-display)' }}>
                   {scProfile.matched_name}
                 </span>
                 {scProfile.matched_team && (
                   <>
-                    <span className="w-px h-3" style={{ background: 'rgba(255,255,255,0.1)' }} />
+                    <span className="w-px h-3 glass-divider" />
                     <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
                       {scProfile.matched_team}
                     </span>
@@ -595,7 +548,7 @@ export default function SkillCornerPage() {
                 )}
                 {scProfile.matched_position && (
                   <>
-                    <span className="w-px h-3" style={{ background: 'rgba(255,255,255,0.1)' }} />
+                    <span className="w-px h-3 glass-divider" />
                     <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
                       {scProfile.matched_position}
                     </span>
@@ -605,7 +558,7 @@ export default function SkillCornerPage() {
                   <span
                     className="px-2 py-0.5 rounded-md text-[10px] font-semibold"
                     style={{
-                      background: 'linear-gradient(135deg, rgba(227,6,19,0.15), rgba(227,6,19,0.05))',
+                      background: 'var(--color-accent-glow)',
                       color: 'var(--color-accent)',
                       border: '1px solid rgba(227,6,19,0.2)',
                       fontFamily: 'var(--font-display)',
@@ -629,12 +582,7 @@ export default function SkillCornerPage() {
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2 }}
-                  className="rounded-2xl overflow-hidden"
-                  style={{
-                    background: 'linear-gradient(145deg, rgba(22,22,22,0.9) 0%, rgba(16,16,16,0.85) 100%)',
-                    border: '1px solid rgba(255,255,255,0.06)',
-                    backdropFilter: 'blur(20px)',
-                  }}
+                  className="glass-panel overflow-hidden"
                 >
                   <SectionHeader
                     icon={Zap}
@@ -670,12 +618,7 @@ export default function SkillCornerPage() {
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.3 }}
-                  className="rounded-2xl overflow-hidden"
-                  style={{
-                    background: 'linear-gradient(145deg, rgba(22,22,22,0.9) 0%, rgba(16,16,16,0.85) 100%)',
-                    border: '1px solid rgba(255,255,255,0.06)',
-                    backdropFilter: 'blur(20px)',
-                  }}
+                  className="glass-panel overflow-hidden"
                 >
                   <SectionHeader
                     icon={TrendingUp}
@@ -712,12 +655,8 @@ export default function SkillCornerPage() {
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="rounded-2xl p-8 text-center"
-              style={{
-                background: 'linear-gradient(145deg, rgba(22,22,22,0.9) 0%, rgba(16,16,16,0.85) 100%)',
-                border: '1px solid rgba(255,255,255,0.06)',
-                color: 'var(--color-text-muted)',
-              }}
+              className="glass-panel p-8 text-center"
+              style={{ color: 'var(--color-text-muted)' }}
             >
               <Activity size={28} className="mx-auto mb-3 opacity-20" />
               <p className="text-sm font-medium mb-1" style={{ fontFamily: 'var(--font-display)' }}>
@@ -735,17 +674,13 @@ export default function SkillCornerPage() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="rounded-2xl p-10 text-center"
-          style={{
-            background: 'linear-gradient(145deg, rgba(22,22,22,0.9) 0%, rgba(16,16,16,0.85) 100%)',
-            border: '1px solid rgba(255,255,255,0.06)',
-            color: 'var(--color-text-muted)',
-          }}
+          className="glass-panel p-10 text-center"
+          style={{ color: 'var(--color-text-muted)' }}
         >
           <div
             className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
             style={{
-              background: 'linear-gradient(135deg, rgba(227,6,19,0.1), rgba(227,6,19,0.02))',
+              background: 'var(--color-accent-glow)',
               border: '1px solid rgba(227,6,19,0.1)',
             }}
           >
