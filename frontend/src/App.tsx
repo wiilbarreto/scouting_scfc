@@ -16,6 +16,10 @@ import PredictionPage from './pages/PredictionPage';
 import ClustersPage from './pages/ClustersPage';
 import AnalysesPage from './pages/AnalysesPage';
 import SkillCornerPage from './pages/SkillCornerPage';
+import TrajectoryPage from './pages/TrajectoryPage';
+import MarketValuePage from './pages/MarketValuePage';
+import OpportunitiesPage from './pages/OpportunitiesPage';
+import ReplacementsPage from './pages/ReplacementsPage';
 
 function App() {
   const { user, isAuthenticated, loading, error, login, logout } = useAuth();
@@ -49,6 +53,14 @@ function App() {
         return <ClustersPage />;
       case 'analyses':
         return <AnalysesPage />;
+      case 'trajectory':
+        return <TrajectoryPage />;
+      case 'market_value':
+        return <MarketValuePage />;
+      case 'opportunities':
+        return <OpportunitiesPage />;
+      case 'replacements':
+        return <ReplacementsPage />;
       default:
         return <DashboardPage />;
     }
