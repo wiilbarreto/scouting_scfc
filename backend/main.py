@@ -862,7 +862,7 @@ async def get_player_profile(
             ssp_score=score,
             age=age,
             league_origin=league_actual,
-            league_target="Serie A Brasil",  # Botafogo-SP target league
+            league_target="Serie B Brasil",  # Botafogo-SP target league
             minutes=minutes_val,
         )
 
