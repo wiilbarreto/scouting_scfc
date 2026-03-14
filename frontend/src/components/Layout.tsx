@@ -18,6 +18,10 @@ import {
   Eye,
   Sun,
   Moon,
+  TrendingUp,
+  DollarSign,
+  Gem,
+  Users,
 } from 'lucide-react';
 import type { User } from '../types/api';
 import { useTheme } from '../contexts/ThemeContext';
@@ -30,10 +34,14 @@ export type TabId =
   | 'skillcorner'
   | 'data'
   | 'rankings'
-  | 'similarity'
   | 'prediction'
+  | 'similarity'
   | 'clusters'
-  | 'analyses';
+  | 'analyses'
+  | 'trajectory'
+  | 'market_value'
+  | 'opportunities'
+  | 'replacements';
 
 interface LayoutProps {
   user: User;
@@ -58,6 +66,9 @@ const NAV_SECTIONS: { title?: string; items: { id: TabId; label: string; icon: R
     items: [
       { id: 'rankings', label: 'Ranking', icon: <Trophy size={18} strokeWidth={1.5} /> },
       { id: 'prediction', label: 'Predicao', icon: <Target size={18} strokeWidth={1.5} /> },
+      { id: 'trajectory', label: 'Trajetoria', icon: <TrendingUp size={18} strokeWidth={1.5} /> },
+      { id: 'market_value', label: 'Valor de Mercado', icon: <DollarSign size={18} strokeWidth={1.5} /> },
+      { id: 'opportunities', label: 'Oportunidades', icon: <Gem size={18} strokeWidth={1.5} /> },
     ],
   },
   {
@@ -65,6 +76,7 @@ const NAV_SECTIONS: { title?: string; items: { id: TabId; label: string; icon: R
     items: [
       { id: 'skillcorner', label: 'SkillCorner', icon: <Activity size={18} strokeWidth={1.5} /> },
       { id: 'similarity', label: 'Similaridade', icon: <Search size={18} strokeWidth={1.5} /> },
+      { id: 'replacements', label: 'Substitutos', icon: <Users size={18} strokeWidth={1.5} /> },
       { id: 'clusters', label: 'Clusters', icon: <Dna size={18} strokeWidth={1.5} /> },
     ],
   },
