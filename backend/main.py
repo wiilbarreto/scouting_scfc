@@ -45,6 +45,16 @@ from schemas.models import (
     SimilarityBreakdown,
     RadarData,
     PositionConfig,
+    TrajectoryRequest,
+    TrajectoryResponse,
+    MarketValueRequest,
+    MarketValueResponse,
+    MarketOpportunitiesRequest,
+    MarketOpportunitiesResponse,
+    MarketOpportunityEntry,
+    ReplacementRequest,
+    ReplacementEntry,
+    ReplacementResponse,
 )
 from services.similarity import (
     INVERTED_METRICS,
@@ -63,6 +73,16 @@ from services.calibration import (
     get_calibrated_wp_weights,
 )
 from services.predictive_engine import ContractSuccessPredictor
+from services.scouting_intelligence import (
+    ScoutingIntelligenceEngine,
+    PlayerTrajectoryModel,
+    MarketValueModel,
+    MarketOpportunityDetector,
+    PlayerReplacementEngine,
+    TemporalPerformanceTrend,
+    LeagueStrengthAdjuster,
+)
+from services.league_power_model import get_opta_league_power, get_all_league_powers
 from services.fuzzy_match import build_skillcorner_index, find_skillcorner_player
 from services.player_assets import load_player_assets_csv, get_player_assets
 from services.database import init_scouting_tables, load_sheet_dataframe, has_data, get_sync_status
@@ -2300,6 +2320,252 @@ async def get_skillcorner_coverage(current_user: dict = Depends(get_current_user
     return {
         "covered_leagues": sorted(SKILLCORNER_COVERED_LEAGUES),
         "description": "Dados SkillCorner disponíveis apenas para ligas sul-americanas e Liga Portugal.",
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════
+# SCOUTING INTELLIGENCE ENGINE
+# ══════════════════════════════════════════════════════════════════════
+
+_scouting_engine: Optional[ScoutingIntelligenceEngine] = None
+
+
+def _get_scouting_engine() -> ScoutingIntelligenceEngine:
+    """Get or initialize the Scouting Intelligence Engine."""
+    global _scouting_engine
+    if _scouting_engine is not None and _scouting_engine._fitted:
+        return _scouting_engine
+
+    df = _get_wyscout()
+    _scouting_engine = ScoutingIntelligenceEngine()
+    try:
+        _scouting_engine.fit(df)
+    except Exception as e:
+        logger.warning("Scouting engine fit failed (will use fallbacks): %s", e)
+        _scouting_engine._fitted = True  # allow fallback methods
+    return _scouting_engine
+
+
+@app.post("/api/trajectory", response_model=TrajectoryResponse)
+async def predict_trajectory(
+    req: TrajectoryRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Predict player career trajectory — predicted rating for next season.
+
+    Scientific basis: Decroos et al. (2019), Pappalardo et al. (2019),
+    Bransen & Van Haaren (2020). Model: Gradient Boosting Regressor.
+    """
+    df = _get_wyscout()
+    player_name = req.player_name
+
+    mask = df["JogadorDisplay"] == player_name
+    if mask.sum() == 0:
+        mask = df["JogadorDisplay"].str.lower() == player_name.lower()
+    if mask.sum() == 0:
+        raise HTTPException(status_code=404, detail="Jogador não encontrado")
+
+    row_data = df.loc[mask.idxmax()]
+    pos_raw = str(row_data.get("Posição", "")) if pd.notna(row_data.get("Posição")) else "Meia"
+    pos = get_posicao_categoria(pos_raw)
+
+    league = req.league
+    if not league:
+        liga_tier = str(row_data.get("liga_tier", "")) if pd.notna(row_data.get("liga_tier")) else None
+        league = resolve_actual_league(row_data.get("Equipa"), fallback_liga_tier=liga_tier)
+
+    engine = _get_scouting_engine()
+    traj = engine.trajectory_model.predict_trajectory(row_data, league)
+
+    return TrajectoryResponse(
+        player=str(row_data.get("Jogador", "")),
+        display_name=player_name,
+        position=pos,
+        predicted_rating_next_season=traj.get("predicted_rating_next_season"),
+        current_rating_estimate=traj.get("current_rating_estimate"),
+        trajectory_score=traj.get("trajectory_score"),
+        league_adjustment_factor=traj.get("league_adjustment_factor"),
+        model_r2=traj.get("model_r2"),
+        top_features=traj.get("top_features"),
+        method=traj.get("method"),
+    )
+
+
+@app.post("/api/market_value", response_model=MarketValueResponse)
+async def predict_market_value(
+    req: MarketValueRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Predict player market value using XGBoost model.
+
+    Scientific basis: Khalife et al. (MDPI 2025), R² > 0.90.
+    Segmented by position × age range.
+    """
+    df = _get_wyscout()
+    player_name = req.player_name
+
+    mask = df["JogadorDisplay"] == player_name
+    if mask.sum() == 0:
+        mask = df["JogadorDisplay"].str.lower() == player_name.lower()
+    if mask.sum() == 0:
+        raise HTTPException(status_code=404, detail="Jogador não encontrado")
+
+    row_data = df.loc[mask.idxmax()]
+    pos_raw = str(row_data.get("Posição", "")) if pd.notna(row_data.get("Posição")) else "Meia"
+    pos = get_posicao_categoria(pos_raw)
+
+    league = req.league
+    if not league:
+        liga_tier = str(row_data.get("liga_tier", "")) if pd.notna(row_data.get("liga_tier")) else None
+        league = resolve_actual_league(row_data.get("Equipa"), fallback_liga_tier=liga_tier)
+
+    engine = _get_scouting_engine()
+    mv = engine.market_model.predict_market_value(row_data, league, req.current_value)
+
+    return MarketValueResponse(
+        player=str(row_data.get("Jogador", "")),
+        display_name=player_name,
+        position=pos,
+        estimated_market_value=mv.get("estimated_market_value"),
+        market_value_gap=mv.get("market_value_gap"),
+        market_value_gap_pct=mv.get("market_value_gap_pct"),
+        value_category=mv.get("value_category"),
+        is_undervalued=mv.get("is_undervalued"),
+    )
+
+
+@app.post("/api/market_opportunities", response_model=MarketOpportunitiesResponse)
+async def detect_market_opportunities(
+    req: MarketOpportunitiesRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Detect undervalued market opportunities using multi-signal scoring.
+
+    Inspired by Brighton, Brentford, FC Midtjylland scouting departments.
+    Score: performance × trajectory × value_gap − age_penalty.
+    """
+    df = _get_wyscout()
+
+    # Filter by minutes
+    if req.min_minutes > 0 and "Minutos jogados:" in df.columns:
+        df_filtered = df[pd.to_numeric(df["Minutos jogados:"], errors="coerce").fillna(0) >= req.min_minutes]
+    else:
+        df_filtered = df
+
+    engine = _get_scouting_engine()
+    results = engine.detect_opportunities(df_filtered, position=req.position, top_n=req.top_n)
+
+    entries = []
+    for r in results:
+        entries.append(MarketOpportunityEntry(
+            player=r.get("player", ""),
+            player_display=r.get("player_display"),
+            team=r.get("team") if r.get("team") else None,
+            market_opportunity_score=r.get("market_opportunity_score", 0),
+            classification=r.get("classification", "below_threshold"),
+            is_high_opportunity=r.get("is_high_opportunity", False),
+            components=r.get("components"),
+        ))
+
+    return MarketOpportunitiesResponse(
+        position=req.position,
+        total=len(entries),
+        opportunities=entries,
+    )
+
+
+@app.post("/api/replacements", response_model=ReplacementResponse)
+async def find_replacements(
+    req: ReplacementRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Find replacement players using multi-method similarity.
+
+    Scientific basis: Bhatt et al. (2025) KickClone — Cosine Similarity + PCA,
+    FPSRec (IEEE BigData 2024), Spatial Similarity Index (PMC/NCBI 2025).
+    Combines: cosine similarity, Mahalanobis distance, cluster proximity.
+    """
+    df = _get_wyscout()
+    player_name = req.player_name
+
+    mask = df["JogadorDisplay"] == player_name
+    if mask.sum() == 0:
+        mask = df["JogadorDisplay"].str.lower() == player_name.lower()
+    if mask.sum() == 0:
+        raise HTTPException(status_code=404, detail="Jogador não encontrado")
+
+    row_data = df.loc[mask.idxmax()]
+
+    pos = req.position
+    if not pos:
+        pos_raw = str(row_data.get("Posição", "")) if pd.notna(row_data.get("Posição")) else "Meia"
+        pos = get_posicao_categoria(pos_raw)
+
+    age_range = None
+    if req.age_min is not None or req.age_max is not None:
+        age_range = (req.age_min or 15, req.age_max or 45)
+
+    engine = _get_scouting_engine()
+    results = engine.find_replacements(
+        target_player_row=row_data,
+        df_pool=df,
+        position=pos,
+        top_n=req.top_n,
+        age_range=age_range,
+        min_minutes=req.min_minutes,
+        league_filter=req.league_filter,
+    )
+
+    entries = []
+    for r in results:
+        entries.append(ReplacementEntry(
+            rank=r.get("rank", 0),
+            player=r.get("player", ""),
+            display_name=r.get("display_name"),
+            team=r.get("team"),
+            position=pos,
+            age=r.get("age"),
+            minutes=r.get("minutes"),
+            similarity_score=r.get("similarity_score", 0),
+            cosine_similarity=r.get("cosine_similarity"),
+            mahalanobis_similarity=r.get("mahalanobis_similarity"),
+            cluster_proximity=r.get("cluster_proximity"),
+            trajectory_score=r.get("trajectory_score"),
+            predicted_rating=r.get("predicted_rating"),
+            market_value_gap=r.get("market_value_gap"),
+            estimated_value=r.get("estimated_value"),
+        ))
+
+    return ReplacementResponse(
+        reference_player=player_name,
+        position=pos,
+        total=len(entries),
+        replacements=entries,
+    )
+
+
+@app.get("/api/league_powers")
+async def get_league_powers(current_user: dict = Depends(get_current_user)):
+    """Return all Opta Power Ranking league coefficients.
+
+    Based on Opta Power Ranking (The Analyst) — global club rating system.
+    """
+    powers = get_all_league_powers()
+    # Also include league tiers from ContractSuccessPredictor for comparison
+    predictor = ContractSuccessPredictor()
+    tiers = predictor.LEAGUE_TIERS
+
+    combined = {}
+    all_leagues = set(list(powers.keys()) + list(tiers.keys()))
+    for league in sorted(all_leagues):
+        combined[league] = {
+            "opta_power": powers.get(league),
+            "tier_score": tiers.get(league),
+        }
+
+    return {
+        "leagues": combined,
+        "total": len(combined),
     }
 
 

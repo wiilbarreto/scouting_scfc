@@ -161,5 +161,99 @@ class LeagueSummary(BaseModel):
     league_logos: Dict[str, str]
 
 
+# ── Scouting Intelligence ─────────────────────────────────────────────
+
+class TrajectoryRequest(BaseModel):
+    player_name: str
+    league: Optional[str] = None
+
+
+class TrajectoryResponse(BaseModel):
+    player: str
+    display_name: Optional[str] = None
+    position: Optional[str] = None
+    predicted_rating_next_season: Optional[float] = None
+    current_rating_estimate: Optional[float] = None
+    trajectory_score: Optional[float] = None
+    league_adjustment_factor: Optional[float] = None
+    model_r2: Optional[float] = None
+    top_features: Optional[Dict[str, float]] = None
+    method: Optional[str] = None
+
+
+class MarketValueRequest(BaseModel):
+    player_name: str
+    league: Optional[str] = None
+    current_value: Optional[float] = None
+
+
+class MarketValueResponse(BaseModel):
+    player: str
+    display_name: Optional[str] = None
+    position: Optional[str] = None
+    estimated_market_value: Optional[float] = None
+    market_value_gap: Optional[float] = None
+    market_value_gap_pct: Optional[float] = None
+    value_category: Optional[str] = None
+    is_undervalued: Optional[bool] = None
+
+
+class MarketOpportunityEntry(BaseModel):
+    player: str
+    player_display: Optional[str] = None
+    team: Optional[str] = None
+    market_opportunity_score: float
+    classification: str
+    is_high_opportunity: bool
+    components: Optional[Dict[str, float]] = None
+
+
+class MarketOpportunitiesRequest(BaseModel):
+    position: Optional[str] = None
+    top_n: int = 50
+    min_minutes: int = 400
+
+
+class MarketOpportunitiesResponse(BaseModel):
+    position: Optional[str] = None
+    total: int
+    opportunities: List[MarketOpportunityEntry]
+
+
+class ReplacementRequest(BaseModel):
+    player_name: str
+    position: Optional[str] = None
+    top_n: int = 20
+    min_minutes: int = 400
+    age_min: Optional[float] = None
+    age_max: Optional[float] = None
+    league_filter: Optional[List[str]] = None
+
+
+class ReplacementEntry(BaseModel):
+    rank: int
+    player: str
+    display_name: Optional[str] = None
+    team: Optional[str] = None
+    position: Optional[str] = None
+    age: Optional[float] = None
+    minutes: Optional[float] = None
+    similarity_score: float
+    cosine_similarity: Optional[float] = None
+    mahalanobis_similarity: Optional[float] = None
+    cluster_proximity: Optional[float] = None
+    trajectory_score: Optional[float] = None
+    predicted_rating: Optional[float] = None
+    market_value_gap: Optional[float] = None
+    estimated_value: Optional[float] = None
+
+
+class ReplacementResponse(BaseModel):
+    reference_player: str
+    position: str
+    total: int
+    replacements: List[ReplacementEntry]
+
+
 # Fix forward reference
 TokenResponse.model_rebuild()
