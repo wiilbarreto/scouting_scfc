@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Search, Download, ImageDown, Loader2, Eye, Zap } from 'lucide-react';
-import html2canvas from 'html2canvas';
+import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { useScoutingReport, useAnalysesPlayers, useSkillCornerSearchReport, useSkillCornerPlayer } from '../hooks/useScoutingReport';
 import { usePlayers } from '../hooks/usePlayers';
@@ -244,75 +244,42 @@ export default function ScoutingReportPage() {
 
   const [exporting, setExporting] = useState(false);
 
-  /** Convert a URL to a base64 data URL */
-  async function toDataUrl(url: string): Promise<string | null> {
+  /** 1×1 transparent PNG as fallback for images that fail CORS fetch */
+  const TRANSPARENT_PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQABNjN9GQAAAAlwSFlzAAAWJQAAFiUBSVIk8AAAAA0lEQVQI12P4z8BQDwAEgAF/QualzQAAAABJRU5ErkJggg==';
+
+  /** Convert a URL to a base64 data URL. Returns transparent pixel on failure. */
+  async function toDataUrl(url: string): Promise<string> {
     try {
       const resp = await fetch(url, { mode: 'cors', credentials: 'same-origin' });
-      if (!resp.ok) return null;
+      if (!resp.ok) return TRANSPARENT_PIXEL;
       const blob = await resp.blob();
       return await new Promise<string>((resolve) => {
         const reader = new FileReader();
         reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = () => resolve(TRANSPARENT_PIXEL);
         reader.readAsDataURL(blob);
       });
-    } catch { return null; }
+    } catch { return TRANSPARENT_PIXEL; }
   }
 
   /**
-   * Force overflow: visible on all ancestors up to body so the
-   * un-scaled slide is not clipped by parent containers during capture.
-   * Returns a cleanup function that restores original values.
+   * Copies all computed styles from src to dst so the clone
+   * looks identical outside the original DOM context.
    */
-  function forceOverflowVisible(el: HTMLElement): () => void {
-    const restoreMap: Array<{ el: HTMLElement; original: string }> = [];
-    let current = el.parentElement;
-    while (current && current !== document.documentElement) {
-      const computed = getComputedStyle(current);
-      if (computed.overflow !== 'visible' || computed.overflowX !== 'visible' || computed.overflowY !== 'visible') {
-        restoreMap.push({ el: current, original: current.style.overflow });
-        current.style.overflow = 'visible';
-      }
-      current = current.parentElement;
+  function copyComputedStyles(src: HTMLElement, dst: HTMLElement) {
+    const computed = getComputedStyle(src);
+    for (let i = 0; i < computed.length; i++) {
+      const prop = computed[i];
+      dst.style.setProperty(prop, computed.getPropertyValue(prop));
     }
-    return () => {
-      restoreMap.forEach(({ el: e, original }) => { e.style.overflow = original; });
-    };
   }
 
   /**
-   * During capture, walk the DOM and replace all inline fontFamily values
-   * with system-safe equivalents that html2canvas can reliably render.
-   * Returns a cleanup function that restores original values.
-   */
-  function overrideFontsForCapture(): () => void {
-    const restoreMap: Array<{ el: HTMLElement; original: string }> = [];
-    const container = reportRef.current;
-    if (!container) return () => {};
-
-    const allEls = container.querySelectorAll<HTMLElement>('*');
-    allEls.forEach((el) => {
-      const ff = el.style.fontFamily;
-      if (!ff) return;
-      restoreMap.push({ el, original: ff });
-      if (ff.toLowerCase().includes('jetbrains') || ff.toLowerCase().includes('monospace')) {
-        el.style.fontFamily = "'Courier New', Courier, monospace";
-      } else {
-        el.style.fontFamily = "Arial, Helvetica, sans-serif";
-      }
-    });
-
-    return () => {
-      restoreMap.forEach(({ el, original }) => {
-        el.style.fontFamily = original;
-      });
-    };
-  }
-
-  /**
-   * Core capture routine: un-scales slides, converts images to base64,
-   * forces overflow visible on ancestors, resets scroll position,
-   * captures each slide with html2canvas using optimized config,
-   * then restores everything.
+   * Core capture routine using offscreen clones.
+   * For each slide: deep-clone it into an offscreen container at position
+   * fixed top:0 left:0, convert images to base64, capture with toPng,
+   * then discard the clone. This avoids all in-place DOM mutation,
+   * viewport/scroll offset, and parent overflow/clipping issues.
    * Returns an array of PNG data URLs (one per slide).
    */
   async function captureSlides(): Promise<string[]> {
@@ -320,105 +287,80 @@ export default function ScoutingReportPage() {
     const slides = reportRef.current.querySelectorAll<HTMLElement>('[data-slide]');
     if (!slides.length) return [];
 
-    // ── 1. Convert ALL images to base64 (CORS fix) ──
-    const imgRestoreMap: Array<{ el: HTMLImageElement; original: string }> = [];
-    const allImgs = reportRef.current.querySelectorAll<HTMLImageElement>('img');
-    await Promise.all(
-      Array.from(allImgs).map(async (img) => {
-        if (img.src.startsWith('data:')) return;
-        const dataUrl = await toDataUrl(img.src);
-        if (dataUrl) {
-          imgRestoreMap.push({ el: img, original: img.src });
-          img.src = dataUrl;
-          // Wait for the browser to decode the new data URL
-          try { await img.decode(); } catch { /* ok */ }
-        }
-      }),
-    );
-
-    // ── 2. Remove SlideScaler transforms ──
-    const restoreList: Array<{
-      scaleDiv: HTMLElement; wrapperDiv: HTMLElement;
-      sd: Record<string, string>; wd: Record<string, string>;
-    }> = [];
-
-    slides.forEach((slide) => {
-      const scaleDiv = slide.parentElement;
-      const wrapperDiv = scaleDiv?.parentElement;
-      if (scaleDiv && wrapperDiv) {
-        restoreList.push({
-          scaleDiv, wrapperDiv,
-          sd: { transform: scaleDiv.style.transform, width: scaleDiv.style.width, height: scaleDiv.style.height },
-          wd: { width: wrapperDiv.style.width, height: wrapperDiv.style.height, margin: wrapperDiv.style.margin, overflow: wrapperDiv.style.overflow },
-        });
-        scaleDiv.style.transform = 'none';
-        scaleDiv.style.width = `${PAGE_WIDTH}px`;
-        scaleDiv.style.height = `${PAGE_HEIGHT}px`;
-        wrapperDiv.style.width = `${PAGE_WIDTH}px`;
-        wrapperDiv.style.height = `${PAGE_HEIGHT}px`;
-        wrapperDiv.style.margin = '0';
-        wrapperDiv.style.overflow = 'visible';
-      }
-    });
-
-    // ── 3. Force overflow visible on entire ancestor chain ──
-    const restoreOverflows: Array<() => void> = [];
-    slides.forEach((slide) => {
-      restoreOverflows.push(forceOverflowVisible(slide));
-    });
-
-    // ── 4. Override fonts with system-safe alternatives ──
-    const restoreFonts = overrideFontsForCapture();
-
-    // ── 5. Reset scroll and wait for reflow ──
-    const prevScrollX = window.scrollX;
-    const prevScrollY = window.scrollY;
-    window.scrollTo(0, 0);
-    await new Promise((r) => setTimeout(r, 500));
-
-    // ── 6. Capture each slide with html2canvas ──
     const images: string[] = [];
+
     for (let i = 0; i < slides.length; i++) {
       const slide = slides[i];
-      const noPrintEls = slide.querySelectorAll<HTMLElement>('.no-print');
+
+      // ── 1. Create offscreen container ──
+      const offscreen = document.createElement('div');
+      offscreen.style.cssText = `
+        position: fixed; top: 0; left: 0; z-index: -9999;
+        width: ${PAGE_WIDTH}px; height: ${PAGE_HEIGHT}px;
+        overflow: visible; pointer-events: none; opacity: 0;
+      `;
+      document.body.appendChild(offscreen);
+
+      // ── 2. Deep-clone the slide ──
+      const clone = slide.cloneNode(true) as HTMLElement;
+      // Apply computed styles from original to clone root
+      copyComputedStyles(slide, clone);
+      // Force exact dimensions and reset any transforms
+      clone.style.width = `${PAGE_WIDTH}px`;
+      clone.style.height = `${PAGE_HEIGHT}px`;
+      clone.style.transform = 'none';
+      clone.style.margin = '0';
+      clone.style.position = 'absolute';
+      clone.style.top = '0';
+      clone.style.left = '0';
+      clone.style.overflow = 'hidden';
+      offscreen.appendChild(clone);
+
+      // ── 3. Convert images to base64 in the clone ──
+      const cloneImgs = clone.querySelectorAll<HTMLImageElement>('img');
+      await Promise.all(
+        Array.from(cloneImgs).map(async (img) => {
+          if (img.src.startsWith('data:')) return;
+          img.src = await toDataUrl(img.src);
+          try { await img.decode(); } catch { /* ok */ }
+        }),
+      );
+
+      // ── 4. Hide .no-print elements ──
+      const noPrintEls = clone.querySelectorAll<HTMLElement>('.no-print');
       noPrintEls.forEach((el) => { el.style.display = 'none'; });
 
-      const rect = slide.getBoundingClientRect();
-      const canvas = await html2canvas(slide, {
-        width: PAGE_WIDTH,
-        height: PAGE_HEIGHT,
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#FFFFFF',
-        logging: false,
-        scrollX: 0,
-        scrollY: 0,
-        windowWidth: PAGE_WIDTH,
-        windowHeight: PAGE_HEIGHT,
-        x: rect.left,
-        y: rect.top,
-        imageTimeout: 30000,
-      });
+      // ── 5. Wait for reflow ──
+      await new Promise((r) => setTimeout(r, 100));
 
-      noPrintEls.forEach((el) => { el.style.display = ''; });
-      images.push(canvas.toDataURL('image/png'));
+      // ── 6. Make visible for capture then capture ──
+      offscreen.style.opacity = '1';
+
+      try {
+        // First call primes resource loading (documented workaround)
+        await toPng(clone, {
+          pixelRatio: 2,
+          width: PAGE_WIDTH,
+          height: PAGE_HEIGHT,
+          skipFonts: true,
+          cacheBust: true,
+        });
+
+        const dataUrl = await toPng(clone, {
+          pixelRatio: 2,
+          width: PAGE_WIDTH,
+          height: PAGE_HEIGHT,
+          skipFonts: true,
+          cacheBust: true,
+        });
+        images.push(dataUrl);
+      } catch (err) {
+        console.error(`Slide ${i + 1} capture failed:`, err);
+      }
+
+      // ── 7. Cleanup ──
+      document.body.removeChild(offscreen);
     }
-
-    // ── 7. Restore ──
-    window.scrollTo(prevScrollX, prevScrollY);
-    restoreFonts();
-    restoreOverflows.forEach((restore) => restore());
-    restoreList.forEach(({ scaleDiv, wrapperDiv, sd, wd }) => {
-      scaleDiv.style.transform = sd.transform;
-      scaleDiv.style.width = sd.width;
-      scaleDiv.style.height = sd.height;
-      wrapperDiv.style.width = wd.width;
-      wrapperDiv.style.height = wd.height;
-      wrapperDiv.style.margin = wd.margin;
-      wrapperDiv.style.overflow = wd.overflow;
-    });
-    imgRestoreMap.forEach(({ el, original }) => { el.src = original; });
 
     return images;
   }
