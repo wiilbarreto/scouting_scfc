@@ -12,7 +12,7 @@ import DeltaChart from '../components/report/DeltaChart';
 
 // ── Google Fonts link (injected once) ──
 const FONTS_HREF =
-  'https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap';
+  'https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap';
 
 function injectFonts() {
   if (document.querySelector(`link[href="${FONTS_HREF}"]`)) return;
@@ -1076,9 +1076,9 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
   },
   cardTitle: {
-    fontFamily: "'DM Serif Display', serif",
+    fontFamily: "'DM Sans', sans-serif",
     fontSize: 16,
-    fontWeight: 400,
+    fontWeight: 600,
     color: C.textPrimary,
     marginTop: 0,
     marginBottom: 16,
@@ -1207,9 +1207,9 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '20px 0',
   },
   physTitle: {
-    fontFamily: "'DM Serif Display', serif",
+    fontFamily: "'DM Sans', sans-serif",
     fontSize: 14,
-    fontWeight: 400,
+    fontWeight: 600,
     color: C.textPrimary,
     marginTop: 0,
     marginBottom: 16,
@@ -1356,8 +1356,9 @@ const styles: Record<string, React.CSSProperties> = {
     color: C.red,
   },
   analysisPlayerName: {
-    fontFamily: "'DM Serif Display', serif",
+    fontFamily: "'DM Sans', sans-serif",
     fontSize: 22,
+    fontWeight: 600,
     lineHeight: 1.15,
     color: C.textPrimary,
   },
