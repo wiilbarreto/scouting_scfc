@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Search, Download, ImageDown, Loader2, Eye, Zap } from 'lucide-react';
-import { toPng } from 'html-to-image';
+import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { useScoutingReport, useAnalysesPlayers, useSkillCornerSearchReport, useSkillCornerPlayer } from '../hooks/useScoutingReport';
 import { usePlayers } from '../hooks/usePlayers';
@@ -260,7 +260,7 @@ export default function ScoutingReportPage() {
 
   /**
    * Force overflow: visible on all ancestors up to body so the
-   * un-scaled slide is not clipped during capture.
+   * un-scaled slide is not clipped by parent containers during capture.
    * Returns a cleanup function that restores original values.
    */
   function forceOverflowVisible(el: HTMLElement): () => void {
@@ -280,8 +280,38 @@ export default function ScoutingReportPage() {
   }
 
   /**
+   * During capture, walk the DOM and replace all inline fontFamily values
+   * with system-safe equivalents that html2canvas can reliably render.
+   * Returns a cleanup function that restores original values.
+   */
+  function overrideFontsForCapture(): () => void {
+    const restoreMap: Array<{ el: HTMLElement; original: string }> = [];
+    const container = reportRef.current;
+    if (!container) return () => {};
+
+    const allEls = container.querySelectorAll<HTMLElement>('*');
+    allEls.forEach((el) => {
+      const ff = el.style.fontFamily;
+      if (!ff) return;
+      restoreMap.push({ el, original: ff });
+      if (ff.toLowerCase().includes('jetbrains') || ff.toLowerCase().includes('monospace')) {
+        el.style.fontFamily = "'Courier New', Courier, monospace";
+      } else {
+        el.style.fontFamily = "Arial, Helvetica, sans-serif";
+      }
+    });
+
+    return () => {
+      restoreMap.forEach(({ el, original }) => {
+        el.style.fontFamily = original;
+      });
+    };
+  }
+
+  /**
    * Core capture routine: un-scales slides, converts images to base64,
-   * captures each slide with html-to-image (foreignObject-based),
+   * forces overflow visible on ancestors, resets scroll position,
+   * captures each slide with html2canvas using optimized config,
    * then restores everything.
    * Returns an array of PNG data URLs (one per slide).
    */
@@ -327,45 +357,57 @@ export default function ScoutingReportPage() {
         wrapperDiv.style.width = `${PAGE_WIDTH}px`;
         wrapperDiv.style.height = `${PAGE_HEIGHT}px`;
         wrapperDiv.style.margin = '0';
-        wrapperDiv.style.overflow = 'hidden';
+        wrapperDiv.style.overflow = 'visible';
       }
     });
 
-    // ── 3. Force overflow visible on ancestor chain ──
+    // ── 3. Force overflow visible on entire ancestor chain ──
     const restoreOverflows: Array<() => void> = [];
     slides.forEach((slide) => {
       restoreOverflows.push(forceOverflowVisible(slide));
     });
 
-    // ── 4. Scroll to top and wait for reflow ──
+    // ── 4. Override fonts with system-safe alternatives ──
+    const restoreFonts = overrideFontsForCapture();
+
+    // ── 5. Reset scroll and wait for reflow ──
     const prevScrollX = window.scrollX;
     const prevScrollY = window.scrollY;
     window.scrollTo(0, 0);
-    await new Promise((r) => setTimeout(r, 300));
+    await new Promise((r) => setTimeout(r, 500));
 
-    // ── 5. Capture each slide with html-to-image ──
+    // ── 6. Capture each slide with html2canvas ──
     const images: string[] = [];
     for (let i = 0; i < slides.length; i++) {
       const slide = slides[i];
       const noPrintEls = slide.querySelectorAll<HTMLElement>('.no-print');
       noPrintEls.forEach((el) => { el.style.display = 'none'; });
 
-      const dataUrl = await toPng(slide, {
-        pixelRatio: 2,
+      const rect = slide.getBoundingClientRect();
+      const canvas = await html2canvas(slide, {
         width: PAGE_WIDTH,
         height: PAGE_HEIGHT,
-        style: {
-          transform: 'none',
-          margin: '0',
-        },
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#FFFFFF',
+        logging: false,
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: PAGE_WIDTH,
+        windowHeight: PAGE_HEIGHT,
+        x: rect.left,
+        y: rect.top,
+        imageTimeout: 30000,
       });
 
       noPrintEls.forEach((el) => { el.style.display = ''; });
-      images.push(dataUrl);
+      images.push(canvas.toDataURL('image/png'));
     }
 
-    // ── 6. Restore ──
+    // ── 7. Restore ──
     window.scrollTo(prevScrollX, prevScrollY);
+    restoreFonts();
     restoreOverflows.forEach((restore) => restore());
     restoreList.forEach(({ scaleDiv, wrapperDiv, sd, wd }) => {
       scaleDiv.style.transform = sd.transform;
