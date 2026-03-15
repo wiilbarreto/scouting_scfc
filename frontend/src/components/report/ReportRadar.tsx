@@ -11,9 +11,11 @@ interface ReportRadarProps {
 export default function ReportRadar({ data, size = 400 }: ReportRadarProps) {
   if (!data.length) return null;
 
-  const cx = size / 2;
-  const cy = size / 2;
-  const maxR = size / 2 - 70;
+  const pad = 80;
+  const svgSize = size + pad * 2;
+  const cx = svgSize / 2;
+  const cy = svgSize / 2;
+  const maxR = size / 2 - 50;
   const innerR = maxR * 0.15;
   const n = data.length;
   const wedgeAngle = (2 * Math.PI) / n;
@@ -57,7 +59,7 @@ export default function ReportRadar({ data, size = 400 }: ReportRadarProps) {
 
   return (
     <div style={styles.container}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <svg width={svgSize} height={svgSize} viewBox={`0 0 ${svgSize} ${svgSize}`} style={{ maxWidth: '100%', height: 'auto' }}>
         {/* Ring guides */}
         {rings.map((pct) => (
           <circle

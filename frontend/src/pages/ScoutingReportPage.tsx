@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Download, Loader2, Eye, Zap, Upload } from 'lucide-react';
+import { Search, Download, Loader2, Eye, Zap } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { useScoutingReport, useAnalysesPlayers, useSkillCornerSearchReport } from '../hooks/useScoutingReport';
@@ -85,7 +85,7 @@ function ReportPage({ children, noPadding }: { children: React.ReactNode; noPadd
 const pageStyles: Record<string, React.CSSProperties> = {
   page: {
     width: PAGE_WIDTH,
-    minHeight: PAGE_HEIGHT,
+    height: PAGE_HEIGHT,
     background: '#FFFFFF',
     borderRadius: 8,
     boxShadow: '0 4px 20px rgba(0,0,0,0.10)',
@@ -183,18 +183,47 @@ export default function ScoutingReportPage() {
 
   const [exporting, setExporting] = useState(false);
 
+  /** Convert a cross-origin image URL to a data URL via fetch */
+  async function imgToDataUrl(url: string): Promise<string | null> {
+    try {
+      const resp = await fetch(url, { mode: 'cors', credentials: 'same-origin' });
+      if (!resp.ok) return null;
+      const blob = await resp.blob();
+      return await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(blob);
+      });
+    } catch { return null; }
+  }
+
   const handleExportPDF = useCallback(async () => {
     if (!reportRef.current || exporting) return;
     setExporting(true);
     try {
-      // Collect all slide elements
       const slides = reportRef.current.querySelectorAll<HTMLElement>('[data-slide]');
       if (!slides.length) { setExporting(false); return; }
 
-      // 16:9 landscape PDF dimensions (mm)
-      const pdfWidth = 338;
-      const pdfHeight = 190;
-      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [pdfWidth, pdfHeight] });
+      // Pre-convert all <img> with src starting with /api/ to data URLs so html2canvas can render them
+      const imgRestoreMap: Array<{ el: HTMLImageElement; original: string }> = [];
+      const allImgs = reportRef.current.querySelectorAll<HTMLImageElement>('img[src^="/api/"]');
+      await Promise.all(
+        Array.from(allImgs).map(async (img) => {
+          const dataUrl = await imgToDataUrl(img.src);
+          if (dataUrl) {
+            imgRestoreMap.push({ el: img, original: img.src });
+            img.src = dataUrl;
+          }
+        }),
+      );
+
+      // Wait a tick for re-render
+      await new Promise((r) => setTimeout(r, 100));
+
+      // PDF in landscape 16:9 — use px-based dimensions converted to mm
+      const pdfWidthMm = PAGE_WIDTH * 0.2646; // px to mm at 96dpi
+      const pdfHeightMm = PAGE_HEIGHT * 0.2646;
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [pdfWidthMm, pdfHeightMm] });
 
       for (let i = 0; i < slides.length; i++) {
         const slide = slides[i];
@@ -203,26 +232,30 @@ export default function ScoutingReportPage() {
         noPrintEls.forEach((el) => { el.style.display = 'none'; });
 
         const canvas = await html2canvas(slide, {
+          width: PAGE_WIDTH,
+          height: PAGE_HEIGHT,
           scale: 2,
           useCORS: true,
-          allowTaint: true,
           backgroundColor: '#FFFFFF',
           logging: false,
+          windowWidth: PAGE_WIDTH,
+          windowHeight: PAGE_HEIGHT,
         });
 
-        // Restore no-print elements
         noPrintEls.forEach((el) => { el.style.display = ''; });
 
         const imgData = canvas.toDataURL('image/png');
-        if (i > 0) pdf.addPage([pdfWidth, pdfHeight], 'landscape');
-        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+        if (i > 0) pdf.addPage([pdfWidthMm, pdfHeightMm], 'landscape');
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidthMm, pdfHeightMm);
       }
+
+      // Restore original image srcs
+      imgRestoreMap.forEach(({ el, original }) => { el.src = original; });
 
       const playerName = data?.player.name ?? 'relatorio';
       pdf.save(`Scouting_${playerName.replace(/\s+/g, '_')}.pdf`);
     } catch (err) {
       console.error('PDF export error:', err);
-      // Fallback to print
       window.print();
     } finally {
       setExporting(false);
@@ -483,9 +516,6 @@ export default function ScoutingReportPage() {
                   <div style={{ padding: '28px 40px 44px' }}>
                     {/* Club logo upload */}
                     <input ref={clubLogoInputRef} type="file" accept="image/*" onChange={handleClubLogoUpload} style={{ display: 'none' }} />
-                    <button className="no-print" onClick={() => clubLogoInputRef.current?.click()} style={styles.uploadShieldBtn}>
-                      <Upload size={10} /> {customClubLogo ? 'Trocar escudo' : 'Escudo PNG'}
-                    </button>
                     <ReportHeader
                       name={data.player.name}
                       badges={data.player.badges}
@@ -493,6 +523,7 @@ export default function ScoutingReportPage() {
                       photo={data.player.photo}
                       clubLogo={data.player.clubLogo}
                       customClubLogo={customClubLogo}
+                      onUploadClubLogo={() => clubLogoInputRef.current?.click()}
                       position={data.player.position}
                       age={data.player.age}
                       height={data.player.height}
@@ -618,7 +649,7 @@ export default function ScoutingReportPage() {
                   <div style={styles.grid2}>
                     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                       {data.composites.length ? (
-                        <ReportRadar data={data.composites} size={420} />
+                        <ReportRadar data={data.composites} size={320} />
                       ) : <Skeleton width="100%" height={300} />}
                     </div>
                     <div style={styles.card}>
@@ -649,14 +680,14 @@ export default function ScoutingReportPage() {
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                       <h3 style={{ ...styles.cardTitle, textAlign: 'center' }}>Todas as Métricas da Posição</h3>
                       {data.allRadarMetrics.length ? (
-                        <WedgeRadar data={data.allRadarMetrics} size={420} />
+                        <WedgeRadar data={data.allRadarMetrics} size={320} />
                       ) : <Skeleton width="100%" height={300} />}
                     </div>
                     {/* Elite wedge */}
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                       <h3 style={{ ...styles.cardTitle, textAlign: 'center' }}>Métricas Elite (P85+)</h3>
                       {data.eliteMetrics.length ? (
-                        <WedgeRadar data={data.eliteMetrics} size={420} />
+                        <WedgeRadar data={data.eliteMetrics} size={320} />
                       ) : <p style={styles.placeholder}>Sem métricas de elite suficientes</p>}
                     </div>
                   </div>
@@ -1380,24 +1411,6 @@ const styles: Record<string, React.CSSProperties> = {
     background: C.bgSubtle,
     borderRadius: 6,
     border: `1px solid ${C.bgMuted}`,
-  },
-  uploadShieldBtn: {
-    position: 'absolute',
-    top: 22,
-    right: 120,
-    display: 'flex',
-    alignItems: 'center',
-    gap: 4,
-    padding: '4px 10px',
-    borderRadius: 6,
-    border: `1px solid ${C.bgMuted}`,
-    background: C.bgCard,
-    fontFamily: "'DM Sans', sans-serif",
-    fontSize: 10,
-    fontWeight: 500,
-    color: C.textSecondary,
-    cursor: 'pointer',
-    zIndex: 5,
   },
   legendBox: {
     display: 'flex',

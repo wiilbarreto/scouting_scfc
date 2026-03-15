@@ -13,6 +13,7 @@ interface ReportHeaderProps {
   photo: string | null;
   clubLogo: string | null;
   customClubLogo?: string | null;
+  onUploadClubLogo?: () => void;
   position: string;
   age: number;
   height: string;
@@ -29,6 +30,7 @@ export default function ReportHeader({
   photo,
   clubLogo,
   customClubLogo,
+  onUploadClubLogo,
   position,
   age,
   height,
@@ -153,14 +155,23 @@ export default function ReportHeader({
                 style={styles.clubLogo}
                 onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
               />
+            ) : onUploadClubLogo ? (
+              <div style={styles.clubLogoPlaceholder} onClick={onUploadClubLogo} className="no-print">
+                <Upload size={16} color="#B0B0B0" />
+              </div>
             ) : null}
-            <div>
+            <div style={{ flex: 1 }}>
               <div style={styles.clubName}>{club}</div>
               <div style={styles.clubMeta}>
                 {league}
                 {contract !== '—' ? ` | Contrato até ${contract}` : ''}
               </div>
             </div>
+            {onUploadClubLogo && (
+              <button className="no-print" onClick={onUploadClubLogo} style={styles.clubUploadBtn}>
+                <Upload size={10} /> {customClubLogo ? 'Trocar' : 'Escudo'}
+              </button>
+            )}
           </div>
 
           {/* Badges */}
@@ -358,6 +369,32 @@ const styles: Record<string, React.CSSProperties> = {
     width: 52,
     height: 52,
     objectFit: 'contain',
+  },
+  clubLogoPlaceholder: {
+    width: 52,
+    height: 52,
+    borderRadius: 8,
+    border: '2px dashed #D4D4D4',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    flexShrink: 0,
+  },
+  clubUploadBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+    padding: '4px 10px',
+    borderRadius: 6,
+    border: '1px solid #E5E4E0',
+    background: '#FFFFFF',
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 10,
+    fontWeight: 500,
+    color: '#4A4A4A',
+    cursor: 'pointer',
+    flexShrink: 0,
   },
   clubName: {
     fontFamily: "'DM Sans', sans-serif",
