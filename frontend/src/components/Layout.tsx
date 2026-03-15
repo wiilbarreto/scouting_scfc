@@ -41,7 +41,8 @@ export type TabId =
   | 'trajectory'
   | 'opportunities'
   | 'replacements'
-  | 'contract_impact';
+  | 'contract_impact'
+  | 'scouting_report';
 
 interface LayoutProps {
   user: User;
@@ -83,6 +84,7 @@ const NAV_SECTIONS: { title?: string; items: { id: TabId; label: string; icon: R
   {
     title: 'RELATORIOS',
     items: [
+      { id: 'scouting_report', label: 'Scouting Report', icon: <FileText size={18} strokeWidth={1.5} /> },
       { id: 'data', label: 'Dados', icon: <Database size={18} strokeWidth={1.5} /> },
       { id: 'analyses', label: 'Analises', icon: <Eye size={18} strokeWidth={1.5} /> },
     ],

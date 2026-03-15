@@ -1,0 +1,1186 @@
+import { useState, useRef } from 'react';
+import { motion } from 'framer-motion';
+import { Search, Printer, Loader2 } from 'lucide-react';
+import { useScoutingReport } from '../hooks/useScoutingReport';
+import { usePlayers } from '../hooks/usePlayers';
+import ReportHeader from '../components/report/ReportHeader';
+import SectionDivider from '../components/report/SectionDivider';
+import StatBox from '../components/report/StatBox';
+import ReportRadar from '../components/report/ReportRadar';
+import WedgeRadar from '../components/report/WedgeRadar';
+import DeltaChart from '../components/report/DeltaChart';
+
+// ── Google Fonts link (injected once) ──
+const FONTS_HREF =
+  'https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap';
+
+function injectFonts() {
+  if (document.querySelector(`link[href="${FONTS_HREF}"]`)) return;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = FONTS_HREF;
+  document.head.appendChild(link);
+}
+
+// ── Colors ──
+const C = {
+  red: '#C8102E',
+  redBright: '#E8213F',
+  redDark: '#A00D24',
+  navy: '#0C1B37',
+  teal: '#80CBA2',
+  green: '#1B9E5A',
+  amber: '#D97706',
+  blue: '#3B82F6',
+  bg: '#F7F6F3',
+  bgCard: '#FFFFFF',
+  bgSubtle: '#EEEDEA',
+  bgMuted: '#E5E4E0',
+  textPrimary: '#1A1A1A',
+  textSecondary: '#4A4A4A',
+  textTertiary: '#8A8A8A',
+  textMuted: '#B0B0B0',
+};
+
+// ── Quadrant colors ──
+const QUADRANT = {
+  tactical: C.red,
+  technical: C.green,
+  physical: C.amber,
+  mental: C.blue,
+};
+
+// ── Skeleton ──
+function Skeleton({ width, height }: { width: string | number; height: string | number }) {
+  return (
+    <div
+      style={{
+        width,
+        height,
+        borderRadius: 8,
+        background: `linear-gradient(90deg, ${C.bgSubtle} 25%, ${C.bgMuted} 50%, ${C.bgSubtle} 75%)`,
+        backgroundSize: '200% 100%',
+        animation: 'shimmer 1.5s infinite',
+      }}
+    />
+  );
+}
+
+// ── Page ──
+export default function ScoutingReportPage() {
+  injectFonts();
+
+  const [playerSearch, setPlayerSearch] = useState('');
+  const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
+  const [incumbentSearch, setIncumbentSearch] = useState('');
+  const [selectedIncumbent, setSelectedIncumbent] = useState<string | null>(null);
+  const [showPlayerDropdown, setShowPlayerDropdown] = useState(false);
+  const [showIncumbentDropdown, setShowIncumbentDropdown] = useState(false);
+
+  const reportRef = useRef<HTMLDivElement>(null);
+
+  const playersQuery = usePlayers({ search: playerSearch, limit: 8 });
+  const incumbentQuery = usePlayers({ search: incumbentSearch, limit: 8 });
+
+  const { data, isLoading, predictionLoading, similarityLoading, skillCornerLoading, comparisonLoading } =
+    useScoutingReport(selectedPlayer, selectedIncumbent);
+
+  const fadeIn = (delay = 0) => ({
+    initial: { opacity: 0, y: 16 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0.4, delay, ease: [0.22, 1, 0.36, 1] },
+  });
+
+  function handlePrint() {
+    window.print();
+  }
+
+  return (
+    <>
+      {/* Print styles */}
+      <style>{`
+        @keyframes shimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+        @media print {
+          .no-print { display: none !important; }
+          @page { margin: 0.4in; size: A4 portrait; }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+      `}</style>
+
+      <div style={styles.page}>
+        {/* ── Toolbar ── */}
+        <div className="no-print" style={styles.toolbar}>
+          <div style={styles.toolbarInner}>
+            {/* Player search */}
+            <div style={styles.searchGroup}>
+              <label style={styles.searchLabel}>Jogador</label>
+              <div style={styles.searchWrapper}>
+                <Search size={14} color={C.textMuted} style={{ flexShrink: 0 }} />
+                <input
+                  style={styles.searchInput}
+                  placeholder="Buscar jogador..."
+                  value={playerSearch}
+                  onChange={(e) => {
+                    setPlayerSearch(e.target.value);
+                    setShowPlayerDropdown(true);
+                  }}
+                  onFocus={() => setShowPlayerDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowPlayerDropdown(false), 200)}
+                />
+              </div>
+              {showPlayerDropdown && playersQuery.data?.players?.length ? (
+                <div style={styles.dropdown}>
+                  {playersQuery.data.players.map((p) => (
+                    <button
+                      key={p.id}
+                      style={styles.dropdownItem}
+                      onMouseDown={() => {
+                        setSelectedPlayer(p.display_name ?? p.name);
+                        setPlayerSearch(p.display_name ?? p.name);
+                        setShowPlayerDropdown(false);
+                      }}
+                    >
+                      <span style={styles.dropdownName}>{p.display_name ?? p.name}</span>
+                      <span style={styles.dropdownMeta}>
+                        {p.team ?? ''} · {p.position ?? ''}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
+            {/* Incumbent search */}
+            <div style={styles.searchGroup}>
+              <label style={styles.searchLabel}>Titular (Delta)</label>
+              <div style={styles.searchWrapper}>
+                <Search size={14} color={C.textMuted} style={{ flexShrink: 0 }} />
+                <input
+                  style={styles.searchInput}
+                  placeholder="Comparar com titular..."
+                  value={incumbentSearch}
+                  onChange={(e) => {
+                    setIncumbentSearch(e.target.value);
+                    setShowIncumbentDropdown(true);
+                  }}
+                  onFocus={() => setShowIncumbentDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowIncumbentDropdown(false), 200)}
+                />
+              </div>
+              {showIncumbentDropdown && incumbentQuery.data?.players?.length ? (
+                <div style={styles.dropdown}>
+                  {incumbentQuery.data.players.map((p) => (
+                    <button
+                      key={p.id}
+                      style={styles.dropdownItem}
+                      onMouseDown={() => {
+                        setSelectedIncumbent(p.display_name ?? p.name);
+                        setIncumbentSearch(p.display_name ?? p.name);
+                        setShowIncumbentDropdown(false);
+                      }}
+                    >
+                      <span style={styles.dropdownName}>{p.display_name ?? p.name}</span>
+                      <span style={styles.dropdownMeta}>
+                        {p.team ?? ''} · {p.position ?? ''}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
+            {/* Print button */}
+            <button style={styles.printBtn} onClick={handlePrint} title="Exportar PDF">
+              <Printer size={16} />
+              Exportar PDF
+            </button>
+          </div>
+        </div>
+
+        {/* ── Report ── */}
+        <div ref={reportRef} style={styles.report}>
+          {!selectedPlayer && (
+            <div style={styles.emptyState}>
+              <Search size={48} color={C.textMuted} />
+              <p style={styles.emptyText}>
+                Selecione um jogador acima para gerar o relatório prescritivo
+              </p>
+            </div>
+          )}
+
+          {selectedPlayer && isLoading && (
+            <div style={styles.loadingState}>
+              <Loader2 size={32} color={C.red} style={{ animation: 'spin 1s linear infinite' }} />
+              <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+              <p style={{ ...styles.emptyText, marginTop: 16 }}>Carregando dados do relatório...</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%', marginTop: 24 }}>
+                <Skeleton width="100%" height={180} />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <Skeleton width="100%" height={200} />
+                  <Skeleton width="100%" height={200} />
+                </div>
+                <Skeleton width="100%" height={300} />
+              </div>
+            </div>
+          )}
+
+          {selectedPlayer && data && (
+            <>
+              {/* 1. HEADER */}
+              <motion.div {...fadeIn(0)}>
+                <ReportHeader
+                  name={data.player.name}
+                  badges={data.player.badges}
+                  clusterDef={data.player.clusterDef}
+                  photo={data.player.photo}
+                  clubLogo={data.player.clubLogo}
+                />
+              </motion.div>
+
+              {/* 2. IDENTIFICAÇÃO + VEREDITO */}
+              <motion.div {...fadeIn(0.1)}>
+                <SectionDivider number={1} title="Identificação & Veredito Preditivo" />
+                <div style={styles.grid2}>
+                  {/* Left: Player ID */}
+                  <div style={styles.card}>
+                    <h3 style={styles.cardTitle}>Dados do Jogador</h3>
+                    <div style={styles.idGrid}>
+                      {[
+                        ['Nome', data.player.name],
+                        ['Idade', data.player.age ? `${data.player.age} anos` : '—'],
+                        ['Posição', data.player.position],
+                        ['Altura', data.player.height],
+                        ['Pé', data.player.foot],
+                        ['Clube', data.player.club],
+                        ['Liga', data.player.league],
+                        ['Contrato', data.player.contract],
+                      ].map(([label, value]) => (
+                        <div key={label} style={styles.idRow}>
+                          <span style={styles.idLabel}>{label}</span>
+                          <span style={styles.idValue}>{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Right: Verdict */}
+                  <div>
+                    <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+                      <StatBox
+                        label="Impact Score"
+                        value={data.predict.impactScore.toFixed(1)}
+                        color={C.green}
+                        subtitle="SSP / 10"
+                      />
+                      <StatBox
+                        label="P(Sucesso)"
+                        value={`${data.predict.pSuccess}%`}
+                        color={C.blue}
+                      />
+                      <StatBox
+                        label="Risco"
+                        value={data.predict.risk}
+                        color={data.predict.riskColor}
+                      />
+                    </div>
+                    {predictionLoading ? (
+                      <Skeleton width="100%" height={80} />
+                    ) : (
+                      <div style={{ ...styles.cardElevated, borderTop: `3px solid ${C.green}` }}>
+                        <div style={styles.verdictLabel}>VEREDITO</div>
+                        <p
+                          style={styles.verdictText}
+                          contentEditable
+                          suppressContentEditableWarning
+                        >
+                          {data.predict.verdict}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* 3. FOUR CORNERS */}
+              <motion.div {...fadeIn(0.15)}>
+                <SectionDivider number={2} title="Matriz Qualitativa — Four Corners" />
+                <div style={styles.grid2x2}>
+                  {(
+                    [
+                      { key: 'tactical' as const, label: 'TÁTICO', color: QUADRANT.tactical },
+                      { key: 'technical' as const, label: 'TÉCNICO', color: QUADRANT.technical },
+                      { key: 'physical' as const, label: 'FÍSICO', color: QUADRANT.physical },
+                      { key: 'mental' as const, label: 'MENTAL', color: QUADRANT.mental },
+                    ] as const
+                  ).map((q) => (
+                    <div
+                      key={q.key}
+                      style={{ ...styles.cardElevated, borderTop: `3px solid ${q.color}` }}
+                    >
+                      <div style={{ ...styles.quadrantLabel, color: q.color }}>{q.label}</div>
+                      <ul style={styles.bulletList}>
+                        {data.qualitative[q.key].map((item, i) => (
+                          <li
+                            key={i}
+                            style={styles.bulletItem}
+                            contentEditable
+                            suppressContentEditableWarning
+                          >
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+
+              {/* 4. ÍNDICES COMPOSTOS — Radar + Filtro Elite */}
+              <motion.div {...fadeIn(0.2)}>
+                <SectionDivider number={3} title="Índices Compostos & Filtro de Elite" />
+                <div style={styles.grid2}>
+                  {/* Radar */}
+                  <div style={styles.card}>
+                    <h3 style={styles.cardTitle}>Radar de Índices</h3>
+                    {data.composites.length ? (
+                      <ReportRadar data={data.composites} />
+                    ) : (
+                      <Skeleton width="100%" height={300} />
+                    )}
+                  </div>
+
+                  {/* Elite filter table */}
+                  <div style={styles.card}>
+                    <h3 style={styles.cardTitle}>Filtro de Elite (P85+)</h3>
+                    {data.eliteMetrics.length ? (
+                      <>
+                        <div style={styles.eliteSummary}>
+                          <span style={styles.eliteCount}>{data.eliteMetrics.length}</span>
+                          <span style={styles.eliteSummaryText}>
+                            métricas no nível elite
+                          </span>
+                        </div>
+                        <table style={styles.table}>
+                          <thead>
+                            <tr>
+                              <th style={styles.th}>Métrica</th>
+                              <th style={{ ...styles.th, textAlign: 'center' }}>Percentil</th>
+                              <th style={styles.th}>Impacto</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {data.eliteMetrics.map((m, i) => (
+                              <tr
+                                key={i}
+                                style={{
+                                  background: i % 2 === 0 ? C.bgCard : C.bgSubtle,
+                                }}
+                              >
+                                <td style={styles.td}>{m.metric}</td>
+                                <td style={{ ...styles.td, textAlign: 'center' }}>
+                                  <span
+                                    style={{
+                                      ...styles.pBadge,
+                                      background:
+                                        m.p >= 95 ? C.green : m.p >= 90 ? C.teal : C.amber,
+                                      color: m.p >= 90 ? '#fff' : '#fff',
+                                    }}
+                                  >
+                                    P{m.p}
+                                  </span>
+                                </td>
+                                <td style={{ ...styles.td, color: C.textTertiary, fontSize: 11 }}>
+                                  {m.impact}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </>
+                    ) : (
+                      <p style={styles.placeholder}>Nenhuma métrica P85+ encontrada</p>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* 5. WEDGE RADAR */}
+              <motion.div {...fadeIn(0.25)}>
+                <SectionDivider number={4} title="Radar Wedge — Métricas Elite" />
+                <div style={styles.card}>
+                  {data.eliteMetrics.length ? (
+                    <WedgeRadar data={data.eliteMetrics} />
+                  ) : (
+                    <p style={styles.placeholder}>
+                      Sem métricas de elite suficientes para o radar wedge
+                    </p>
+                  )}
+                </div>
+              </motion.div>
+
+              {/* 6. DELTA VS TITULAR */}
+              <motion.div {...fadeIn(0.3)}>
+                <SectionDivider number={5} title="Delta vs. Titular — Squad Impact" />
+                <div style={styles.card}>
+                  {!selectedIncumbent ? (
+                    <p style={styles.placeholder}>
+                      Selecione um titular na barra acima para gerar a comparação Delta
+                    </p>
+                  ) : comparisonLoading ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      <Skeleton width="100%" height={100} />
+                      <Skeleton width="100%" height={200} />
+                    </div>
+                  ) : data.delta.length ? (
+                    <>
+                      <DeltaChart
+                        data={data.delta}
+                        playerName={data.player.name}
+                        incumbentName={selectedIncumbent}
+                      />
+                      <div style={{ marginTop: 20 }}>
+                        <div
+                          style={styles.quoteBox}
+                          contentEditable
+                          suppressContentEditableWarning
+                        >
+                          Impacto projetado na composição do elenco: adicione sua análise aqui.
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <p style={styles.placeholder}>Dados de comparação indisponíveis</p>
+                  )}
+                </div>
+              </motion.div>
+
+              {/* 7. DADOS FÍSICOS — SkillCorner */}
+              <motion.div {...fadeIn(0.35)}>
+                <SectionDivider number={6} title="Dados Físicos — SkillCorner" />
+                {skillCornerLoading ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
+                    <Skeleton width="100%" height={200} />
+                    <Skeleton width="100%" height={200} />
+                    <Skeleton width="100%" height={200} />
+                  </div>
+                ) : data.physical ? (
+                  <div style={styles.grid3}>
+                    {/* Velocity */}
+                    <div style={styles.card}>
+                      <h4 style={styles.physTitle}>Velocidade</h4>
+                      <PhysicalBar
+                        label="Vel. Máxima"
+                        data={data.physical.maxSpeed}
+                        unit="km/h"
+                      />
+                      <PhysicalBar
+                        label="Sprints p90"
+                        data={data.physical.sprints}
+                        unit="/90"
+                      />
+                    </div>
+                    {/* Endurance */}
+                    <div style={styles.card}>
+                      <h4 style={styles.physTitle}>Resistência</h4>
+                      <PhysicalBar
+                        label="Distância"
+                        data={data.physical.distance}
+                        unit="km"
+                      />
+                      <PhysicalBar
+                        label="High Runs"
+                        data={data.physical.hiRuns}
+                        unit="/90"
+                      />
+                    </div>
+                    {/* Explosiveness */}
+                    <div style={styles.card}>
+                      <h4 style={styles.physTitle}>Explosividade</h4>
+                      <PhysicalBar
+                        label="Acelerações"
+                        data={data.physical.accelerations}
+                        unit="/90"
+                      />
+                      <PhysicalBar
+                        label="Pressões"
+                        data={data.physical.pressures}
+                        unit="/90"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ ...styles.card, borderLeft: `3px solid ${C.amber}` }}>
+                    <p style={{ ...styles.placeholder, color: C.amber }}>
+                      Dados SkillCorner não disponíveis para este jogador. Campos editáveis abaixo.
+                    </p>
+                    <div style={styles.grid3}>
+                      {['Velocidade', 'Resistência', 'Explosividade'].map((cat) => (
+                        <div key={cat} style={styles.card}>
+                          <h4 style={styles.physTitle}>{cat}</h4>
+                          <div
+                            contentEditable
+                            suppressContentEditableWarning
+                            style={styles.editablePlaceholder}
+                          >
+                            Inserir dados manualmente
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+
+              {/* 8. CONTINGÊNCIA */}
+              <motion.div {...fadeIn(0.4)}>
+                <SectionDivider number={7} title="Contingência — Jogadores Similares" />
+                <div style={styles.grid2}>
+                  {/* Similar players */}
+                  <div style={styles.card}>
+                    <h3 style={styles.cardTitle}>Top 3 Similares</h3>
+                    {similarityLoading ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <Skeleton width="100%" height={48} />
+                        <Skeleton width="100%" height={48} />
+                        <Skeleton width="100%" height={48} />
+                      </div>
+                    ) : data.similar.length ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        {data.similar.map((s, i) => (
+                          <div key={i} style={styles.similarRow}>
+                            <div style={styles.similarRank}>{i + 1}</div>
+                            <div style={{ flex: 1 }}>
+                              <div style={styles.similarName}>{s.name}</div>
+                              <div style={styles.similarClub}>{s.club}</div>
+                            </div>
+                            <div style={styles.similarPct}>{s.pct}%</div>
+                            <div style={styles.progressTrack}>
+                              <div
+                                style={{
+                                  ...styles.progressBar,
+                                  width: `${s.pct}%`,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p style={styles.placeholder}>Sem jogadores similares encontrados</p>
+                    )}
+                  </div>
+
+                  {/* Analytical observation */}
+                  <div style={styles.card}>
+                    <h3 style={styles.cardTitle}>Observação Analítica</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                      {['Nível Competitivo', 'Valor de Mercado', 'Estratégia'].map((field) => (
+                        <div key={field}>
+                          <div style={styles.obsLabel}>{field}</div>
+                          <div
+                            contentEditable
+                            suppressContentEditableWarning
+                            style={styles.obsField}
+                          >
+                            Inserir observação...
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* 9. CONCLUSÃO */}
+              <motion.div {...fadeIn(0.45)}>
+                <SectionDivider number={8} title="Conclusão & Recomendação" />
+                <div style={styles.grid3}>
+                  {/* Veredito Final */}
+                  <div style={{ ...styles.cardElevated, borderTop: `3px solid ${C.green}` }}>
+                    <div style={{ ...styles.quadrantLabel, color: C.green }}>
+                      VEREDITO FINAL
+                    </div>
+                    <div
+                      contentEditable
+                      suppressContentEditableWarning
+                      style={styles.conclusionText}
+                    >
+                      Jogador apresenta perfil compatível com as necessidades do elenco. Recomendação de avanço nas tratativas.
+                    </div>
+                  </div>
+
+                  {/* Negociação */}
+                  <div style={{ ...styles.cardElevated, borderTop: `3px solid ${C.red}` }}>
+                    <div style={{ ...styles.quadrantLabel, color: C.red }}>NEGOCIAÇÃO</div>
+                    <ul style={styles.bulletList}>
+                      {[
+                        'Definir teto salarial',
+                        'Avaliar cláusulas contratuais',
+                        'Consultar agente do jogador',
+                      ].map((item, i) => (
+                        <li
+                          key={i}
+                          style={styles.bulletItem}
+                          contentEditable
+                          suppressContentEditableWarning
+                        >
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Desenvolvimento */}
+                  <div style={{ ...styles.cardElevated, borderTop: `3px solid ${C.amber}` }}>
+                    <div style={{ ...styles.quadrantLabel, color: C.amber }}>
+                      DESENVOLVIMENTO
+                    </div>
+                    <ul style={styles.bulletList}>
+                      {[
+                        'Plano de adaptação tática',
+                        'Acompanhamento físico',
+                        'Integração com elenco',
+                      ].map((item, i) => (
+                        <li
+                          key={i}
+                          style={styles.bulletItem}
+                          contentEditable
+                          suppressContentEditableWarning
+                        >
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Recommendation banner */}
+                <div style={styles.recBanner}>
+                  <div style={styles.recTitle}>RECOMENDAÇÃO</div>
+                  <div
+                    contentEditable
+                    suppressContentEditableWarning
+                    style={styles.recText}
+                  >
+                    {data.predict.risk.toLowerCase().includes('baix') || data.predict.risk.toLowerCase() === 'low'
+                      ? `AVANÇAR — Jogador com P(Sucesso) de ${data.predict.pSuccess}% e perfil de risco baixo. Recomendamos avanço imediato nas negociações.`
+                      : data.predict.risk.toLowerCase().includes('med')
+                        ? `AVALIAR COM CAUTELA — P(Sucesso) de ${data.predict.pSuccess}% com risco moderado. Recomendamos avaliação presencial antes de avançar.`
+                        : `MONITORAR — P(Sucesso) de ${data.predict.pSuccess}% com risco elevado. Manter em observação e reavaliar em 60 dias.`}
+                  </div>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── PhysicalBar sub-component ──
+function PhysicalBar({
+  label,
+  data,
+  unit,
+}: {
+  label: string;
+  data: { value: number; p: number } | null;
+  unit: string;
+}) {
+  if (!data) return null;
+
+  const pColor =
+    data.p >= 90 ? C.green : data.p >= 65 ? C.amber : data.p >= 36 ? C.textTertiary : C.red;
+
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+        <span style={phStyles.label}>{label}</span>
+        <span style={{ ...phStyles.pValue, color: pColor }}>P{Math.round(data.p)}</span>
+      </div>
+      <div style={phStyles.track}>
+        <div
+          style={{
+            ...phStyles.bar,
+            width: `${Math.min(data.p, 100)}%`,
+            background: pColor,
+          }}
+        />
+      </div>
+      <div style={phStyles.valueText}>
+        {typeof data.value === 'number' ? data.value.toFixed(1) : '—'} {unit}
+      </div>
+    </div>
+  );
+}
+
+const phStyles: Record<string, React.CSSProperties> = {
+  label: {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 11,
+    color: C.textSecondary,
+  },
+  pValue: {
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 11,
+    fontWeight: 700,
+  },
+  track: {
+    height: 6,
+    background: C.bgSubtle,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  bar: {
+    height: '100%',
+    borderRadius: 3,
+    transition: 'width 0.6s ease',
+  },
+  valueText: {
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 10,
+    color: C.textTertiary,
+    marginTop: 2,
+  },
+};
+
+const C_red = C.red;
+
+// ── Page Styles ──
+const styles: Record<string, React.CSSProperties> = {
+  page: {
+    background: C.bg,
+    minHeight: '100vh',
+    fontFamily: "'DM Sans', sans-serif",
+  },
+  toolbar: {
+    position: 'sticky',
+    top: 0,
+    zIndex: 20,
+    background: 'rgba(247, 246, 243, 0.92)',
+    backdropFilter: 'blur(12px)',
+    borderBottom: `1px solid ${C.bgMuted}`,
+    padding: '12px 0',
+    marginBottom: 24,
+  },
+  toolbarInner: {
+    maxWidth: 1100,
+    margin: '0 auto',
+    padding: '0 24px',
+    display: 'flex',
+    gap: 16,
+    alignItems: 'flex-end',
+    flexWrap: 'wrap',
+  },
+  searchGroup: {
+    position: 'relative',
+    flex: 1,
+    minWidth: 200,
+  },
+  searchLabel: {
+    display: 'block',
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 10,
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    color: C.textTertiary,
+    marginBottom: 4,
+  },
+  searchWrapper: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    background: C.bgCard,
+    border: `1px solid ${C.bgMuted}`,
+    borderRadius: 8,
+    padding: '8px 12px',
+  },
+  searchInput: {
+    border: 'none',
+    outline: 'none',
+    background: 'transparent',
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 13,
+    color: C.textPrimary,
+    flex: 1,
+    minWidth: 0,
+  },
+  dropdown: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    background: C.bgCard,
+    border: `1px solid ${C.bgMuted}`,
+    borderRadius: 8,
+    boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
+    zIndex: 30,
+    maxHeight: 280,
+    overflowY: 'auto',
+    marginTop: 4,
+  },
+  dropdownItem: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    padding: '10px 14px',
+    border: 'none',
+    background: 'transparent',
+    cursor: 'pointer',
+    textAlign: 'left',
+    transition: 'background 0.15s',
+    borderBottom: `1px solid ${C.bgSubtle}`,
+  },
+  dropdownName: {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 13,
+    fontWeight: 500,
+    color: C.textPrimary,
+  },
+  dropdownMeta: {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 11,
+    color: C.textTertiary,
+  },
+  printBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    background: C_red,
+    color: '#fff',
+    border: 'none',
+    borderRadius: 8,
+    padding: '10px 20px',
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+    letterSpacing: '0.04em',
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
+  },
+  report: {
+    maxWidth: 1100,
+    margin: '0 auto',
+    padding: '0 24px 60px',
+  },
+  emptyState: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 400,
+    gap: 16,
+  },
+  emptyText: {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 14,
+    color: C.textTertiary,
+    textAlign: 'center',
+  },
+  loadingState: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 400,
+  },
+  grid2: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: 20,
+  },
+  grid2x2: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: 16,
+  },
+  grid3: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr 1fr',
+    gap: 16,
+  },
+  card: {
+    background: C.bgCard,
+    border: `1px solid ${C.bgMuted}`,
+    borderRadius: 10,
+    padding: 24,
+    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+  },
+  cardElevated: {
+    background: C.bgCard,
+    border: `1px solid ${C.bgMuted}`,
+    borderRadius: 10,
+    padding: 24,
+    boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
+  },
+  cardTitle: {
+    fontFamily: "'DM Serif Display', serif",
+    fontSize: 16,
+    fontWeight: 400,
+    color: C.textPrimary,
+    marginTop: 0,
+    marginBottom: 16,
+  },
+  idGrid: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+  },
+  idRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    padding: '6px 0',
+    borderBottom: `1px solid ${C.bgSubtle}`,
+  },
+  idLabel: {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 12,
+    color: C.textTertiary,
+    fontWeight: 500,
+  },
+  idValue: {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 12,
+    color: C.textPrimary,
+    fontWeight: 600,
+  },
+  verdictLabel: {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 10,
+    fontWeight: 600,
+    letterSpacing: '0.12em',
+    textTransform: 'uppercase',
+    color: C.textTertiary,
+    marginBottom: 8,
+  },
+  verdictText: {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 13,
+    color: C.textSecondary,
+    lineHeight: 1.6,
+    margin: 0,
+    outline: 'none',
+  },
+  quadrantLabel: {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    marginBottom: 12,
+  },
+  bulletList: {
+    listStyle: 'none',
+    padding: 0,
+    margin: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+  },
+  bulletItem: {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 12,
+    color: C.textSecondary,
+    lineHeight: 1.5,
+    paddingLeft: 14,
+    position: 'relative',
+    outline: 'none',
+  },
+  eliteSummary: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+    padding: '10px 14px',
+    background: C.bgSubtle,
+    borderRadius: 8,
+  },
+  eliteCount: {
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 24,
+    fontWeight: 700,
+    color: C.green,
+  },
+  eliteSummaryText: {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 12,
+    color: C.textSecondary,
+  },
+  table: {
+    width: '100%',
+    borderCollapse: 'collapse',
+    fontSize: 12,
+  },
+  th: {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 10,
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    color: C.textTertiary,
+    padding: '8px 10px',
+    textAlign: 'left',
+    borderBottom: `2px solid ${C.bgMuted}`,
+  },
+  td: {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 12,
+    color: C.textPrimary,
+    padding: '8px 10px',
+  },
+  pBadge: {
+    display: 'inline-block',
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 10,
+    fontWeight: 700,
+    padding: '2px 8px',
+    borderRadius: 12,
+  },
+  placeholder: {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 13,
+    color: C.textTertiary,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    padding: '20px 0',
+  },
+  physTitle: {
+    fontFamily: "'DM Serif Display', serif",
+    fontSize: 14,
+    fontWeight: 400,
+    color: C.textPrimary,
+    marginTop: 0,
+    marginBottom: 16,
+  },
+  editablePlaceholder: {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 12,
+    color: C.textMuted,
+    padding: '12px',
+    borderRadius: 6,
+    border: `1px dashed ${C.bgMuted}`,
+    outline: 'none',
+    minHeight: 60,
+  },
+  similarRow: {
+    display: 'grid',
+    gridTemplateColumns: '28px 1fr 44px 80px',
+    alignItems: 'center',
+    gap: 10,
+    padding: '10px 0',
+    borderBottom: `1px solid ${C.bgSubtle}`,
+  },
+  similarRank: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    background: C.bgSubtle,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 11,
+    fontWeight: 700,
+    color: C.textSecondary,
+  },
+  similarName: {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 13,
+    fontWeight: 600,
+    color: C.textPrimary,
+  },
+  similarClub: {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 11,
+    color: C.textTertiary,
+  },
+  similarPct: {
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 12,
+    fontWeight: 700,
+    color: C.green,
+    textAlign: 'right',
+  },
+  progressTrack: {
+    height: 6,
+    background: C.bgSubtle,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressBar: {
+    height: '100%',
+    background: C.green,
+    borderRadius: 3,
+    transition: 'width 0.6s ease',
+  },
+  obsLabel: {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 10,
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    color: C.textTertiary,
+    marginBottom: 6,
+  },
+  obsField: {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 12,
+    color: C.textSecondary,
+    padding: '10px 12px',
+    borderRadius: 6,
+    border: `1px solid ${C.bgMuted}`,
+    outline: 'none',
+    lineHeight: 1.5,
+    minHeight: 40,
+  },
+  conclusionText: {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 13,
+    color: C.textSecondary,
+    lineHeight: 1.6,
+    outline: 'none',
+  },
+  recBanner: {
+    marginTop: 24,
+    background: `linear-gradient(135deg, ${C_red}, ${C.redDark})`,
+    borderRadius: 12,
+    padding: '24px 32px',
+    boxShadow: '0 8px 24px rgba(200, 16, 46, 0.25)',
+  },
+  recTitle: {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 10,
+    fontWeight: 700,
+    letterSpacing: '0.15em',
+    textTransform: 'uppercase',
+    color: 'rgba(255,255,255,0.6)',
+    marginBottom: 8,
+  },
+  recText: {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 14,
+    color: '#fff',
+    lineHeight: 1.6,
+    fontWeight: 500,
+    outline: 'none',
+  },
+  quoteBox: {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 12,
+    color: C.textSecondary,
+    fontStyle: 'italic',
+    padding: '14px 18px',
+    borderLeft: `3px solid ${C.teal}`,
+    background: C.bgSubtle,
+    borderRadius: '0 8px 8px 0',
+    outline: 'none',
+    lineHeight: 1.5,
+  },
+};
