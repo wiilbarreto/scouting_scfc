@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Printer, Loader2 } from 'lucide-react';
-import { useScoutingReport } from '../hooks/useScoutingReport';
+import { Search, Printer, Loader2, Eye } from 'lucide-react';
+import { useScoutingReport, useAnalysesPlayers } from '../hooks/useScoutingReport';
 import { usePlayers } from '../hooks/usePlayers';
 import ReportHeader from '../components/report/ReportHeader';
 import SectionDivider from '../components/report/SectionDivider';
@@ -76,11 +76,14 @@ export default function ScoutingReportPage() {
   const [selectedIncumbent, setSelectedIncumbent] = useState<string | null>(null);
   const [showPlayerDropdown, setShowPlayerDropdown] = useState(false);
   const [showIncumbentDropdown, setShowIncumbentDropdown] = useState(false);
+  const [showAnalysesDropdown, setShowAnalysesDropdown] = useState(false);
+  const [analysesSearch, setAnalysesSearch] = useState('');
 
   const reportRef = useRef<HTMLDivElement>(null);
 
   const playersQuery = usePlayers({ search: playerSearch, limit: 8 });
   const incumbentQuery = usePlayers({ search: incumbentSearch, limit: 8 });
+  const analysesQuery = useAnalysesPlayers(analysesSearch);
 
   const { data, isLoading, predictionLoading, similarityLoading, skillCornerLoading, comparisonLoading } =
     useScoutingReport(selectedPlayer, selectedIncumbent);
@@ -146,6 +149,50 @@ export default function ScoutingReportPage() {
                       <span style={styles.dropdownName}>{p.display_name ?? p.name}</span>
                       <span style={styles.dropdownMeta}>
                         {p.team ?? ''} · {p.position ?? ''}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
+            {/* Analyses player selector */}
+            <div style={styles.searchGroup}>
+              <label style={styles.searchLabel}>
+                <Eye size={10} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />
+                Atleta Analisado
+              </label>
+              <div style={styles.searchWrapper}>
+                <Search size={14} color={C.textMuted} style={{ flexShrink: 0 }} />
+                <input
+                  style={styles.searchInput}
+                  placeholder="Buscar atleta com análise..."
+                  value={analysesSearch}
+                  onChange={(e) => {
+                    setAnalysesSearch(e.target.value);
+                    setShowAnalysesDropdown(true);
+                  }}
+                  onFocus={() => setShowAnalysesDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowAnalysesDropdown(false), 200)}
+                />
+              </div>
+              {showAnalysesDropdown && analysesQuery.data?.players?.length ? (
+                <div style={styles.dropdown}>
+                  {analysesQuery.data.players.map((p, idx) => (
+                    <button
+                      key={`${p.nome}-${idx}`}
+                      style={styles.dropdownItem}
+                      onMouseDown={() => {
+                        setSelectedPlayer(p.nome);
+                        setPlayerSearch(p.nome);
+                        setAnalysesSearch(p.nome);
+                        setShowAnalysesDropdown(false);
+                      }}
+                    >
+                      <span style={styles.dropdownName}>{p.nome}</span>
+                      <span style={styles.dropdownMeta}>
+                        {p.equipe ?? ''} · {p.posicao ?? ''}
+                        {p.modelo ? ` · ${p.modelo}` : ''}
                       </span>
                     </button>
                   ))}
@@ -229,7 +276,7 @@ export default function ScoutingReportPage() {
 
           {selectedPlayer && data && (
             <>
-              {/* 1. HEADER */}
+              {/* 1. COVER PAGE */}
               <motion.div {...fadeIn(0)}>
                 <ReportHeader
                   name={data.player.name}
@@ -237,12 +284,99 @@ export default function ScoutingReportPage() {
                   clusterDef={data.player.clusterDef}
                   photo={data.player.photo}
                   clubLogo={data.player.clubLogo}
+                  position={data.player.position}
+                  age={data.player.age}
+                  height={data.player.height}
+                  club={data.player.club}
+                  league={data.player.league}
+                  contract={data.player.contract}
+                  links={data.analysis.links}
                 />
               </motion.div>
 
-              {/* 2. IDENTIFICAÇÃO + VEREDITO */}
+              {/* 2. ANÁLISE DESCRITIVA */}
+              <motion.div {...fadeIn(0.05)}>
+                <SectionDivider number={1} title="Análise Descritiva" />
+                <div style={styles.card}>
+                  {/* Analysis header */}
+                  <div style={styles.analysisHeader}>
+                    {data.player.clubLogo && (
+                      <img
+                        src={`/api/image-proxy?url=${encodeURIComponent(data.player.clubLogo)}`}
+                        alt={data.player.club}
+                        style={{ width: 32, height: 32, objectFit: 'contain' }}
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    )}
+                    <div>
+                      <div style={styles.analysisLabel}>ANÁLISE</div>
+                      <div style={styles.analysisPlayerName}>
+                        <span style={{ fontWeight: 700 }}>{data.player.name.split(' ')[0]?.toUpperCase()}</span>{' '}
+                        {data.player.name.split(' ').slice(1).join(' ').toUpperCase()}
+                      </div>
+                    </div>
+                    {data.analysis.modelo && (
+                      <span style={{
+                        ...styles.modeloBadge,
+                        background: data.analysis.modelo === 'Descartado' ? 'rgba(239,68,68,0.1)' : 'rgba(59,130,246,0.1)',
+                        color: data.analysis.modelo === 'Descartado' ? '#ef4444' : '#3b82f6',
+                        border: `1px solid ${data.analysis.modelo === 'Descartado' ? 'rgba(239,68,68,0.2)' : 'rgba(59,130,246,0.2)'}`,
+                      }}>
+                        {data.analysis.modelo}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Score grades */}
+                  {Object.keys(data.analysis.scores).length > 0 && (
+                    <div style={styles.scoresGrid}>
+                      {Object.entries(data.analysis.scores).map(([key, value]) => {
+                        const label = key === 'Nota_Desempenho' ? 'Desempenho' : key === 'Técnica' ? 'Técnica' : key;
+                        const scoreColor = value >= 4 ? '#1B9E5A' : value >= 3 ? '#3B82F6' : value >= 2 ? '#D97706' : '#C8102E';
+                        return (
+                          <div key={key} style={styles.scoreBox}>
+                            <div style={styles.scoreLabel}>{label}</div>
+                            <div style={{ ...styles.scoreValue, color: scoreColor }}>
+                              {value.toFixed(1)}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Analysis text */}
+                  <div
+                    style={styles.analysisText}
+                    contentEditable
+                    suppressContentEditableWarning
+                  >
+                    {data.analysis.text || 'Análise descritiva não disponível para este jogador. Clique aqui para inserir manualmente.'}
+                  </div>
+
+                  {/* Financial info */}
+                  {(data.analysis.faixaSalarial || data.analysis.transferLuvas) && (
+                    <div style={styles.financialRow}>
+                      {data.analysis.faixaSalarial && (
+                        <div style={styles.financialTag}>
+                          <span style={{ color: C.textTertiary }}>Salário:</span>{' '}
+                          <span style={{ fontWeight: 600 }}>{data.analysis.faixaSalarial}</span>
+                        </div>
+                      )}
+                      {data.analysis.transferLuvas && (
+                        <div style={styles.financialTag}>
+                          <span style={{ color: C.textTertiary }}>Transfer/Luvas:</span>{' '}
+                          <span style={{ fontWeight: 600 }}>{data.analysis.transferLuvas}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+
+              {/* 3. IDENTIFICAÇÃO + VEREDITO */}
               <motion.div {...fadeIn(0.1)}>
-                <SectionDivider number={1} title="Identificação & Veredito Preditivo" />
+                <SectionDivider number={2} title="Identificação & Veredito Preditivo" />
                 <div style={styles.grid2}>
                   {/* Left: Player ID */}
                   <div style={styles.card}>
@@ -304,9 +438,9 @@ export default function ScoutingReportPage() {
                 </div>
               </motion.div>
 
-              {/* 3. FOUR CORNERS */}
+              {/* 4. FOUR CORNERS */}
               <motion.div {...fadeIn(0.15)}>
-                <SectionDivider number={2} title="Matriz Qualitativa — Four Corners" />
+                <SectionDivider number={3} title="Matriz Qualitativa — Four Corners" />
                 <div style={styles.grid2x2}>
                   {(
                     [
@@ -338,9 +472,9 @@ export default function ScoutingReportPage() {
                 </div>
               </motion.div>
 
-              {/* 4. ÍNDICES COMPOSTOS — Radar + Filtro Elite */}
+              {/* 5. ÍNDICES COMPOSTOS — Radar + Filtro Elite */}
               <motion.div {...fadeIn(0.2)}>
-                <SectionDivider number={3} title="Índices Compostos & Filtro de Elite" />
+                <SectionDivider number={4} title="Índices Compostos & Filtro de Elite" />
                 <div style={styles.grid2}>
                   {/* Radar */}
                   <div style={styles.card}>
@@ -407,9 +541,9 @@ export default function ScoutingReportPage() {
                 </div>
               </motion.div>
 
-              {/* 5. WEDGE RADAR */}
+              {/* 6. WEDGE RADAR */}
               <motion.div {...fadeIn(0.25)}>
-                <SectionDivider number={4} title="Radar Wedge — Métricas Elite" />
+                <SectionDivider number={5} title="Radar Wedge — Métricas Elite" />
                 <div style={styles.card}>
                   {data.eliteMetrics.length ? (
                     <WedgeRadar data={data.eliteMetrics} />
@@ -421,9 +555,9 @@ export default function ScoutingReportPage() {
                 </div>
               </motion.div>
 
-              {/* 6. DELTA VS TITULAR */}
+              {/* 7. DELTA VS TITULAR */}
               <motion.div {...fadeIn(0.3)}>
-                <SectionDivider number={5} title="Delta vs. Titular — Squad Impact" />
+                <SectionDivider number={6} title="Delta vs. Titular — Squad Impact" />
                 <div style={styles.card}>
                   {!selectedIncumbent ? (
                     <p style={styles.placeholder}>
@@ -457,9 +591,9 @@ export default function ScoutingReportPage() {
                 </div>
               </motion.div>
 
-              {/* 7. DADOS FÍSICOS — SkillCorner */}
+              {/* 8. DADOS FÍSICOS — SkillCorner */}
               <motion.div {...fadeIn(0.35)}>
-                <SectionDivider number={6} title="Dados Físicos — SkillCorner" />
+                <SectionDivider number={7} title="Dados Físicos — SkillCorner" />
                 {skillCornerLoading ? (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
                     <Skeleton width="100%" height={200} />
@@ -534,9 +668,9 @@ export default function ScoutingReportPage() {
                 )}
               </motion.div>
 
-              {/* 8. CONTINGÊNCIA */}
+              {/* 9. CONTINGÊNCIA */}
               <motion.div {...fadeIn(0.4)}>
-                <SectionDivider number={7} title="Contingência — Jogadores Similares" />
+                <SectionDivider number={8} title="Contingência — Jogadores Similares" />
                 <div style={styles.grid2}>
                   {/* Similar players */}
                   <div style={styles.card}>
@@ -594,9 +728,9 @@ export default function ScoutingReportPage() {
                 </div>
               </motion.div>
 
-              {/* 9. CONCLUSÃO */}
+              {/* 10. CONCLUSÃO */}
               <motion.div {...fadeIn(0.45)}>
-                <SectionDivider number={8} title="Conclusão & Recomendação" />
+                <SectionDivider number={9} title="Conclusão & Recomendação" />
                 <div style={styles.grid3}>
                   {/* Veredito Final */}
                   <div style={{ ...styles.cardElevated, borderTop: `3px solid ${C.green}` }}>
@@ -1182,5 +1316,94 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '0 8px 8px 0',
     outline: 'none',
     lineHeight: 1.5,
+  },
+  // Analysis section styles
+  analysisHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 20,
+    paddingBottom: 16,
+    borderBottom: `2px solid ${C.red}`,
+  },
+  analysisLabel: {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 10,
+    fontWeight: 700,
+    letterSpacing: '0.12em',
+    textTransform: 'uppercase',
+    color: C.red,
+  },
+  analysisPlayerName: {
+    fontFamily: "'DM Serif Display', serif",
+    fontSize: 22,
+    lineHeight: 1.15,
+    color: C.textPrimary,
+  },
+  modeloBadge: {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 10,
+    fontWeight: 600,
+    padding: '3px 10px',
+    borderRadius: 12,
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
+    marginLeft: 'auto',
+  },
+  scoresGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))',
+    gap: 10,
+    marginBottom: 20,
+  },
+  scoreBox: {
+    background: C.bgSubtle,
+    borderRadius: 8,
+    padding: '12px 10px',
+    textAlign: 'center' as const,
+    border: `1px solid ${C.bgMuted}`,
+  },
+  scoreLabel: {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 9,
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.06em',
+    color: C.textTertiary,
+    marginBottom: 4,
+  },
+  scoreValue: {
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 22,
+    fontWeight: 700,
+    lineHeight: 1.1,
+  },
+  analysisText: {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 13,
+    color: C.textSecondary,
+    lineHeight: 1.75,
+    textAlign: 'justify' as const,
+    outline: 'none',
+    padding: '16px 20px',
+    background: C.bgSubtle,
+    borderRadius: 8,
+    border: `1px solid ${C.bgMuted}`,
+    marginBottom: 16,
+    minHeight: 100,
+  },
+  financialRow: {
+    display: 'flex',
+    gap: 12,
+    flexWrap: 'wrap' as const,
+  },
+  financialTag: {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 11,
+    color: C.textPrimary,
+    padding: '6px 12px',
+    background: C.bgSubtle,
+    borderRadius: 6,
+    border: `1px solid ${C.bgMuted}`,
   },
 };
