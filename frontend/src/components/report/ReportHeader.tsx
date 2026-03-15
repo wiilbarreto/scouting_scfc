@@ -57,9 +57,23 @@ export default function ReportHeader({
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
-      setFullBodyImage(ev.target?.result as string);
+      const img = new Image();
+      img.onload = () => {
+        const maxSize = 800;
+        const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, w, h);
+        setFullBodyImage(canvas.toDataURL('image/png'));
+      };
+      img.src = ev.target?.result as string;
     };
     reader.readAsDataURL(file);
+    e.target.value = '';
   }
 
   const videoUrl = links['Vídeo'] || links['Video'] || null;
@@ -134,13 +148,15 @@ export default function ReportHeader({
             </div>
             <div style={styles.dataRow}>
               <span style={styles.dataLabel}>IDADE</span>
-              <span style={styles.dataValue}>
+              <span style={styles.dataValue} contentEditable suppressContentEditableWarning>
                 {age > 0 ? `${age} Anos` : '—'}
               </span>
             </div>
             <div style={styles.dataRow}>
               <span style={styles.dataLabel}>ALTURA</span>
-              <span style={styles.dataValue}>{height}</span>
+              <span style={styles.dataValue} contentEditable suppressContentEditableWarning>
+                {height}
+              </span>
             </div>
           </div>
 
