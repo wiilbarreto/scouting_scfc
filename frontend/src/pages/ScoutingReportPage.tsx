@@ -244,8 +244,8 @@ export default function ScoutingReportPage() {
 
   const [exporting, setExporting] = useState(false);
 
-  /** 1×1 transparent PNG as fallback for images that fail CORS fetch */
-  const TRANSPARENT_PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQABNjN9GQAAAAlwSFlzAAAWJQAAFiUBSVIk8AAAAA0lEQVQI12P4z8BQDwAEgAF/QualzQAAAABJRU5ErkJggg==';
+  /** 1×1 transparent GIF as fallback for images that fail CORS fetch */
+  const TRANSPARENT_PIXEL = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
   /** Convert a URL to a base64 data URL. Returns transparent pixel on failure. */
   async function toDataUrl(url: string): Promise<string> {
