@@ -1517,9 +1517,10 @@ class ContractImpactAnalyzer:
     """
 
     # Pesos do score composto final (soma = 1.0)
+    # quality_uplift com maior peso para priorizar melhora qualitativa
     COMPONENT_WEIGHTS = {
-        'positional_need': 0.20,
-        'quality_uplift': 0.25,
+        'positional_need': 0.15,
+        'quality_uplift': 0.30,
         'tactical_complementarity': 0.15,
         'age_profile_fit': 0.10,
         'financial_efficiency': 0.15,
@@ -1541,13 +1542,13 @@ class ContractImpactAnalyzer:
     # Ideal squad depth per position (for 38-game Série B season)
     IDEAL_DEPTH = {
         'Goleiro': 3,
-        'Zagueiro': 5,
+        'Zagueiro': 6,
         'Lateral Direito': 2,
         'Lateral Esquerdo': 2,
         'Volante': 4,
-        'Meia': 3,
+        'Meia': 4,
         'Extremo': 4,
-        'Atacante': 3,
+        'Atacante': 4,
     }
 
     # Ideal age distribution targets (Kuper & Szymanski, Age Curves 2.0)
@@ -1680,7 +1681,8 @@ class ContractImpactAnalyzer:
 
         # ── 2. Quality Uplift ─────────────────────────────────────
         quality = self._calculate_quality_uplift(
-            candidate_row, candidate_position, df_all
+            candidate_row, candidate_position, df_all,
+            league=candidate_league,
         )
         result['quality_uplift'] = quality
 
@@ -1819,12 +1821,15 @@ class ContractImpactAnalyzer:
         }
 
     def _calculate_quality_uplift(
-        self, candidate_row, position: str, df_all: pd.DataFrame
+        self, candidate_row, position: str, df_all: pd.DataFrame,
+        league: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Calculate performance quality uplift vs current squad players.
 
         Measures how much better the candidate is compared to existing
         players at the same position using position-specific metrics.
+        Applies a league strength bonus — good performance in stronger
+        leagues is weighted more heavily (Opta Power Rankings).
         Reference: Pappalardo et al. (2019) PlayeRank, VAEP (Decroos 2019).
         """
         metrics = self.QUALITY_METRICS.get(position, self.QUALITY_METRICS.get('Meia', []))
@@ -1891,11 +1896,27 @@ class ContractImpactAnalyzer:
             # Fallback: use percentile directly
             score = avg_percentile / 100.0
 
+        # League strength bonus — bom desempenho em ligas maiores vale mais
+        league_bonus = 0.0
+        if league:
+            target_power = get_opta_league_power('Serie B Brasil')
+            source_power = get_opta_league_power(league)
+            power_diff = source_power - target_power
+            if power_diff > 20:
+                league_bonus = 0.15  # Liga muito superior (ex: Série A, ligas europeias)
+            elif power_diff > 10:
+                league_bonus = 0.10  # Liga superior
+            elif power_diff > 5:
+                league_bonus = 0.05  # Liga ligeiramente superior
+
+        score = min(1.0, max(0.0, score + league_bonus))
+
         return {
-            'score': min(1.0, max(0.0, score)),
+            'score': score,
             'avg_percentile': round(avg_percentile, 1),
             'uplift_ratio': round(np.mean(uplift_ratios), 2) if uplift_ratios else None,
             'metrics_compared': len(metric_comparison),
+            'league_bonus': round(league_bonus * 100, 1),
             'top_metrics': dict(sorted(
                 metric_comparison.items(),
                 key=lambda x: x[1].get('ratio', 0), reverse=True
