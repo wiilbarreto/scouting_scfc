@@ -1523,7 +1523,7 @@ class ContractImpactAnalyzer:
         'quality_uplift': 0.35,
         'tactical_complementarity': 0.10,
         'age_profile_fit': 0.10,
-        'financial_efficiency': 0.15,
+        'salary_efficiency': 0.15,
         'risk_assessment': 0.15,
     }
 
@@ -1638,6 +1638,7 @@ class ContractImpactAnalyzer:
         candidate_position: str,
         candidate_league: Optional[str] = None,
         candidate_estimated_value: Optional[float] = None,
+        candidate_salary: Optional[float] = None,
         trajectory_model: Optional['PlayerTrajectoryModel'] = None,
         market_model: Optional['MarketValueModel'] = None,
     ) -> Dict[str, Any]:
@@ -1649,6 +1650,7 @@ class ContractImpactAnalyzer:
             candidate_position: Position category of the candidate
             candidate_league: League of the candidate
             candidate_estimated_value: Estimated market value in EUR millions
+            candidate_salary: Monthly salary in BRL (R$)
             trajectory_model: Optional trajectory model for predictions
             market_model: Optional market model for valuations
 
@@ -1672,7 +1674,6 @@ class ContractImpactAnalyzer:
             'position': candidate_position,
             'age': candidate_age,
             'league': candidate_league,
-            'estimated_value': candidate_estimated_value,
         }
 
         # ── 1. Positional Need Score ──────────────────────────────
@@ -1696,12 +1697,9 @@ class ContractImpactAnalyzer:
         age_fit = self._calculate_age_profile_fit(candidate_age, candidate_position)
         result['age_profile_fit'] = age_fit
 
-        # ── 5. Financial Efficiency ───────────────────────────────
-        financial = self._calculate_financial_efficiency(
-            candidate_row, candidate_position, candidate_league,
-            candidate_estimated_value, trajectory_model, market_model
-        )
-        result['financial_efficiency'] = financial
+        # ── 5. Salary Efficiency ─────────────────────────────────
+        salary = self._calculate_salary_efficiency(candidate_salary, candidate_position)
+        result['salary_efficiency'] = salary
 
         # ── 6. Risk Assessment ────────────────────────────────────
         risk = self._calculate_risk_assessment(
@@ -1716,7 +1714,7 @@ class ContractImpactAnalyzer:
             'quality_uplift': quality['score'],
             'tactical_complementarity': tactical['score'],
             'age_profile_fit': age_fit['score'],
-            'financial_efficiency': financial['score'],
+            'salary_efficiency': salary['score'],
             'risk_assessment': risk['score'],
         }
 
@@ -2113,88 +2111,63 @@ class ContractImpactAnalyzer:
             'avg_squad_age': round(np.mean(squad_ages), 1),
         }
 
-    def _calculate_financial_efficiency(
+    def _calculate_salary_efficiency(
         self,
-        candidate_row,
+        candidate_salary: Optional[float],
         position: str,
-        league: Optional[str],
-        estimated_value: Optional[float],
-        trajectory_model: Optional['PlayerTrajectoryModel'] = None,
-        market_model: Optional['MarketValueModel'] = None,
     ) -> Dict[str, Any]:
-        """Calculate financial efficiency of the signing.
+        """Calculate salary efficiency comparing candidate vs squad salaries.
 
-        Combines cost assessment with projected ROI using trajectory and
-        market value models.
-        Reference: Poli et al. (CIES 2021), MRP (Gerrard 2001),
-        Soccernomics (Kuper & Szymanski 2009).
+        Args:
+            candidate_salary: Monthly salary in BRL (R$), or None if not provided.
+            position: Position category of the candidate.
         """
-        # Get trajectory prediction for expected development
-        trajectory_score = None
-        predicted_rating = None
-        if trajectory_model:
-            try:
-                traj = trajectory_model.predict_trajectory(candidate_row, league)
-                trajectory_score = traj.get('trajectory_score', 0)
-                predicted_rating = traj.get('predicted_rating_next_season')
-            except Exception:
-                pass
+        from config.mappings import BOTAFOGO_SP_SALARIES, BOTAFOGO_SP_SQUAD
 
-        # Get market value prediction
-        mv_estimated = estimated_value
-        value_gap = None
-        if market_model:
-            try:
-                mv = market_model.predict_market_value(candidate_row, league, estimated_value)
-                if mv_estimated is None:
-                    mv_estimated = mv.get('estimated_market_value')
-                value_gap = mv.get('market_value_gap')
-            except Exception:
-                pass
+        all_salaries = list(BOTAFOGO_SP_SALARIES.values())
+        squad_avg = float(np.mean(all_salaries))
+        squad_median = float(np.median(all_salaries))
+        squad_max = max(all_salaries)
 
-        # Serie B Brasil context: typical transfer budget ~€0.5-2M per player
-        serie_b_budget_ref = 1.0  # €1M reference
+        # Position-specific salaries
+        pos_salaries = [
+            BOTAFOGO_SP_SALARIES[name]
+            for name, (pos, _, _) in BOTAFOGO_SP_SQUAD.items()
+            if pos == position and name in BOTAFOGO_SP_SALARIES
+        ]
+        pos_avg = float(np.mean(pos_salaries)) if pos_salaries else squad_avg
 
-        if mv_estimated is not None and mv_estimated > 0:
-            # Cost efficiency relative to Serie B budget
-            cost_ratio = mv_estimated / serie_b_budget_ref
-            if cost_ratio <= 0.3:
-                cost_score = 0.95  # Very affordable
-            elif cost_ratio <= 0.8:
-                cost_score = 0.80  # Affordable
-            elif cost_ratio <= 1.5:
-                cost_score = 0.60  # Moderate cost
-            elif cost_ratio <= 3.0:
-                cost_score = 0.35  # Expensive for Serie B
+        if candidate_salary is not None and candidate_salary > 0:
+            ratio_vs_avg = candidate_salary / squad_avg
+            ratio_vs_pos = candidate_salary / pos_avg if pos_avg > 0 else 1.0
+
+            # Score: melhor quando salário é compatível com elenco
+            if ratio_vs_avg <= 0.5:
+                score = 0.95  # Muito abaixo da média — excelente custo
+            elif ratio_vs_avg <= 0.8:
+                score = 0.85  # Abaixo da média
+            elif ratio_vs_avg <= 1.2:
+                score = 0.70  # Na faixa da média
+            elif ratio_vs_avg <= 1.8:
+                score = 0.50  # Acima da média
+            elif ratio_vs_avg <= 2.5:
+                score = 0.30  # Muito acima da média
             else:
-                cost_score = 0.15  # Very expensive
-
-            # Value gap bonus (is player undervalued?)
-            if value_gap is not None and value_gap > 0:
-                cost_score = min(1.0, cost_score + 0.10)
+                score = 0.15  # Salário fora da realidade do elenco
         else:
-            cost_score = 0.50  # Unknown cost
-
-        # Trajectory bonus — player with positive trajectory = better investment
-        trajectory_bonus = 0.0
-        if trajectory_score is not None:
-            if trajectory_score > 5:
-                trajectory_bonus = 0.10
-            elif trajectory_score > 2:
-                trajectory_bonus = 0.05
-            elif trajectory_score < -3:
-                trajectory_bonus = -0.10
-
-        score = min(1.0, max(0.0, cost_score + trajectory_bonus))
+            score = 0.50  # Sem salário informado
+            ratio_vs_avg = None
+            ratio_vs_pos = None
 
         return {
             'score': score,
-            'estimated_value_eur_m': round(mv_estimated, 2) if mv_estimated else None,
-            'serie_b_budget_ref': serie_b_budget_ref,
-            'value_gap': round(value_gap, 2) if value_gap is not None else None,
-            'trajectory_score': round(trajectory_score, 2) if trajectory_score is not None else None,
-            'predicted_rating': round(predicted_rating, 1) if predicted_rating is not None else None,
-            'is_undervalued': value_gap is not None and value_gap > 0,
+            'candidate_salary': candidate_salary,
+            'squad_avg_salary': round(squad_avg, 2),
+            'squad_median_salary': round(squad_median, 2),
+            'position_avg_salary': round(pos_avg, 2),
+            'squad_max_salary': squad_max,
+            'ratio_vs_squad_avg': round(ratio_vs_avg, 2) if ratio_vs_avg is not None else None,
+            'ratio_vs_position_avg': round(ratio_vs_pos, 2) if ratio_vs_pos is not None else None,
         }
 
     def _calculate_risk_assessment(
@@ -2423,14 +2396,12 @@ class ScoutingIntelligenceEngine:
 
     def analyze_impact(self, candidate_row, df_all: pd.DataFrame,
                        position: str, league: Optional[str] = None,
-                       estimated_value: Optional[float] = None) -> Dict[str, Any]:
+                       salary: Optional[float] = None) -> Dict[str, Any]:
         """Analisa impacto de contratação no elenco do Botafogo-SP."""
         return self.contract_impact.analyze_contract_impact(
             candidate_row=candidate_row,
             df_all=df_all,
             candidate_position=position,
             candidate_league=league,
-            candidate_estimated_value=estimated_value,
-            trajectory_model=self.trajectory_model,
-            market_model=self.market_model,
+            candidate_salary=salary,
         )

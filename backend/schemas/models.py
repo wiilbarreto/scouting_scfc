@@ -263,7 +263,7 @@ class ReplacementResponse(BaseModel):
 class ContractImpactRequest(BaseModel):
     player_name: str
     league: Optional[str] = None
-    estimated_value: Optional[float] = None
+    salary: Optional[float] = None
 
 
 class ContractImpactSquadPlayer(BaseModel):
@@ -289,7 +289,7 @@ class ContractImpactResponse(BaseModel):
     quality_uplift: Dict[str, Any] = {}
     tactical_complementarity: Dict[str, Any] = {}
     age_profile_fit: Dict[str, Any] = {}
-    financial_efficiency: Dict[str, Any] = {}
+    salary_efficiency: Dict[str, Any] = {}
     risk_assessment: Dict[str, Any] = {}
     squad_context: Dict[str, Any] = {}
 

@@ -28,7 +28,6 @@ interface ImpactResult {
     position: string;
     age: number;
     league: string | null;
-    estimated_value: number | null;
   };
   impact_score: number;
   classification: string;
@@ -59,11 +58,14 @@ interface ImpactResult {
     remaining_career_years: number;
     avg_squad_age: number;
   };
-  financial_efficiency: ComponentDetail & {
-    estimated_value_eur_m: number | null;
-    value_gap: number | null;
-    trajectory_score: number | null;
-    is_undervalued: boolean;
+  salary_efficiency: ComponentDetail & {
+    candidate_salary: number | null;
+    squad_avg_salary: number;
+    squad_median_salary: number;
+    position_avg_salary: number;
+    squad_max_salary: number;
+    ratio_vs_squad_avg: number | null;
+    ratio_vs_position_avg: number | null;
   };
   risk_assessment: ComponentDetail & {
     risk_level: string;
@@ -91,7 +93,7 @@ const COMPONENT_LABELS: Record<string, { label: string; icon: typeof Shield }> =
   quality_uplift: { label: 'Ganho de Qualidade', icon: TrendingUp },
   tactical_complementarity: { label: 'Complementaridade Tática', icon: Crosshair },
   age_profile_fit: { label: 'Perfil Etário', icon: Clock },
-  financial_efficiency: { label: 'Eficiência Financeira', icon: DollarSign },
+  salary_efficiency: { label: 'Eficiência Salarial', icon: DollarSign },
   risk_assessment: { label: 'Avaliação de Risco', icon: Shield },
 };
 
@@ -103,16 +105,15 @@ function getScoreColor(score: number): string {
   return '#ef4444';
 }
 
-function formatEUR(millions: number): string {
-  if (millions >= 1.0) return `€${millions.toFixed(1)}M`;
-  return `€${(millions * 1000).toFixed(0)}K`;
+function formatBRL(value: number): string {
+  return `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
 export default function ContractImpactPage() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedPlayer, setSelectedPlayer] = useState('');
-  const [estimatedValue, setEstimatedValue] = useState('');
+  const [salary, setSalary] = useState('');
   const [timer, setTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
 
   const searchParams = useMemo(() => ({ search: debouncedSearch || undefined, limit: 10 }), [debouncedSearch]);
@@ -129,7 +130,7 @@ export default function ContractImpactPage() {
   const analysis = useMutation({
     mutationFn: async () => {
       const payload: Record<string, unknown> = { player_name: selectedPlayer };
-      if (estimatedValue) payload.estimated_value = parseFloat(estimatedValue);
+      if (salary) payload.salary = parseFloat(salary);
       const res = await api.post('/contract_impact', payload);
       return res.data as ImpactResult;
     },
@@ -176,8 +177,8 @@ export default function ContractImpactPage() {
             </div>
           </div>
           <div>
-            <label className="block text-[10px] font-[var(--font-display)] tracking-[0.1em] uppercase mb-1" style={{ color: 'var(--color-text-muted)' }}>VALOR €M (opcional)</label>
-            <input type="number" value={estimatedValue} onChange={(e) => setEstimatedValue(e.target.value)} placeholder="Ex: 1.5" className="px-3 py-2 rounded text-sm outline-none w-40" style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border-subtle)', color: 'var(--color-text-primary)' }} />
+            <label className="block text-[10px] font-[var(--font-display)] tracking-[0.1em] uppercase mb-1" style={{ color: 'var(--color-text-muted)' }}>SALÁRIO R$ (opcional)</label>
+            <input type="number" value={salary} onChange={(e) => setSalary(e.target.value)} placeholder="Ex: 80000" className="px-3 py-2 rounded text-sm outline-none w-40" style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border-subtle)', color: 'var(--color-text-primary)' }} />
           </div>
           <button
             onClick={() => analysis.mutate()}
@@ -202,7 +203,6 @@ export default function ContractImpactPage() {
                   <span>{result.candidate.position}</span>
                   {result.candidate.league && <><span>·</span><span>{result.candidate.league}</span></>}
                   {result.candidate.age != null && <><span>·</span><span>{result.candidate.age.toFixed(0)} anos</span></>}
-                  {result.candidate.estimated_value != null && <><span>·</span><span>{formatEUR(result.candidate.estimated_value)}</span></>}
                 </div>
               </div>
               <div className="text-right">
@@ -404,39 +404,45 @@ export default function ContractImpactPage() {
               </div>
             </motion.div>
 
-            {/* Financial Efficiency */}
+            {/* Salary Efficiency */}
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.9 }} className="card-glass rounded-lg p-4">
               <div className="text-[10px] font-[var(--font-display)] tracking-[0.1em] uppercase mb-3 flex items-center gap-2" style={{ color: 'var(--color-text-muted)' }}>
-                <DollarSign size={14} /> EFICIÊNCIA FINANCEIRA
+                <DollarSign size={14} /> EFICIÊNCIA SALARIAL
               </div>
               <div className="space-y-2 text-sm">
-                {result.financial_efficiency.estimated_value_eur_m != null && (
+                {result.salary_efficiency.candidate_salary != null && (
                   <div className="flex justify-between">
-                    <span style={{ color: 'var(--color-text-secondary)' }}>Valor estimado</span>
-                    <span className="font-[var(--font-mono)] font-semibold">{formatEUR(result.financial_efficiency.estimated_value_eur_m)}</span>
+                    <span style={{ color: 'var(--color-text-secondary)' }}>Salário candidato</span>
+                    <span className="font-[var(--font-mono)] font-semibold">{formatBRL(result.salary_efficiency.candidate_salary)}</span>
                   </div>
                 )}
-                {result.financial_efficiency.value_gap != null && (
+                <div className="flex justify-between">
+                  <span style={{ color: 'var(--color-text-secondary)' }}>Média do elenco</span>
+                  <span className="font-[var(--font-mono)]">{formatBRL(result.salary_efficiency.squad_avg_salary)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span style={{ color: 'var(--color-text-secondary)' }}>Média na posição</span>
+                  <span className="font-[var(--font-mono)]">{formatBRL(result.salary_efficiency.position_avg_salary)}</span>
+                </div>
+                {result.salary_efficiency.ratio_vs_squad_avg != null && (
                   <div className="flex justify-between">
-                    <span style={{ color: 'var(--color-text-secondary)' }}>Gap de valor</span>
-                    <span className="font-[var(--font-mono)]" style={{ color: result.financial_efficiency.is_undervalued ? '#22c55e' : '#ef4444' }}>
-                      {result.financial_efficiency.value_gap > 0 ? '+' : ''}{formatEUR(Math.abs(result.financial_efficiency.value_gap))}
+                    <span style={{ color: 'var(--color-text-secondary)' }}>Ratio vs elenco</span>
+                    <span className="font-[var(--font-mono)]" style={{ color: result.salary_efficiency.ratio_vs_squad_avg <= 1.2 ? '#22c55e' : result.salary_efficiency.ratio_vs_squad_avg <= 1.8 ? '#eab308' : '#ef4444' }}>
+                      {result.salary_efficiency.ratio_vs_squad_avg.toFixed(2)}x
                     </span>
                   </div>
                 )}
-                {result.financial_efficiency.trajectory_score != null && (
+                {result.salary_efficiency.ratio_vs_position_avg != null && (
                   <div className="flex justify-between">
-                    <span style={{ color: 'var(--color-text-secondary)' }}>Score de trajetória</span>
-                    <span className="font-[var(--font-mono)]" style={{ color: result.financial_efficiency.trajectory_score > 0 ? '#22c55e' : '#ef4444' }}>
-                      {result.financial_efficiency.trajectory_score > 0 ? '+' : ''}{result.financial_efficiency.trajectory_score.toFixed(1)}
+                    <span style={{ color: 'var(--color-text-secondary)' }}>Ratio vs posição</span>
+                    <span className="font-[var(--font-mono)]" style={{ color: result.salary_efficiency.ratio_vs_position_avg <= 1.2 ? '#22c55e' : result.salary_efficiency.ratio_vs_position_avg <= 1.8 ? '#eab308' : '#ef4444' }}>
+                      {result.salary_efficiency.ratio_vs_position_avg.toFixed(2)}x
                     </span>
                   </div>
                 )}
                 <div className="flex justify-between">
-                  <span style={{ color: 'var(--color-text-secondary)' }}>Subvalorizado?</span>
-                  <span style={{ color: result.financial_efficiency.is_undervalued ? '#22c55e' : 'var(--color-text-muted)' }}>
-                    {result.financial_efficiency.is_undervalued ? 'Sim' : 'Não'}
-                  </span>
+                  <span style={{ color: 'var(--color-text-secondary)' }}>Teto salarial</span>
+                  <span className="font-[var(--font-mono)]">{formatBRL(result.salary_efficiency.squad_max_salary)}</span>
                 </div>
               </div>
             </motion.div>

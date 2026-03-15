@@ -324,6 +324,49 @@ BOTAFOGO_SP_SQUAD = {
 
 
 # ============================================
+# SALÁRIOS ELENCO BOTAFOGO-SP (R$/mês)
+# ============================================
+BOTAFOGO_SP_SALARIES = {
+    'Victor Souza': 79041.67,
+    'Jonathan Lemos': 58000.00,
+    'Ericson': 53500.00,
+    'Gustavo Vilar': 58000.00,
+    'Leandro Maciel': 110000.00,
+    'Patrick Brey': 65000.00,
+    'Kelvin Giacobe': 100000.00,
+    'Everton Morelli': 103000.00,
+    'Hygor Cléber': 133000.00,
+    'Rafael Gava': 141070.83,
+    'Jéfferson Nem': 73000.00,
+    'Jordan Esteves': 36000.00,
+    'Wallace Fortuna': 93000.00,
+    'Carlos Eduardo': 55000.00,
+    'Guilherme Mariano': 50000.00,
+    'Matheus Sales': 60000.00,
+    'Guilherme Queiróz': 53000.00,
+    'Márcio Maranhão': 43000.00,
+    'Marquinho': 55000.00,
+    'Luizão': 27000.00,
+    'Gabriel Inocêncio': 65000.00,
+    'Wesley Pinheiro': 63000.00,
+    'Brenno Klippel': 17400.00,
+    'Felipe Vieira': 59000.00,
+    'Darlan Batista': 13000.00,
+    'Thiaguinho': 33000.00,
+    'Zé Hugo': 80000.00,
+    'Pedro Tortello': 19000.00,
+    'Thalles': 6000.00,
+    'Hebert Badaró': 5500.00,
+    'Érik': 4500.00,
+    'Adriano': 4000.00,
+    'Yuri Felipe': 2300.00,
+    'Henrique Teles': 2000.00,
+    'Felipe Penha': 2000.00,
+    'Pedrinho': 1600.00,
+}
+
+
+# ============================================
 # WYSCOUT LEAGUE MAP (liga WyScout → chave LEAGUE_TIERS)
 # ============================================
 WYSCOUT_LEAGUE_MAP = {

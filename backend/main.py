@@ -2599,7 +2599,7 @@ async def analyze_contract_impact(
         df_all=df,
         position=pos,
         league=league,
-        estimated_value=req.estimated_value,
+        salary=req.salary,
     )
 
     return ContractImpactResponse(**impact)
