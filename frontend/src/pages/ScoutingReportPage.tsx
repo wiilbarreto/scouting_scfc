@@ -93,8 +93,11 @@ const pageStyles: Record<string, React.CSSProperties> = {
     boxShadow: '0 4px 24px rgba(0,0,0,0.10)',
     position: 'relative',
     overflow: 'hidden',
+    overflowX: 'hidden',
     pageBreakAfter: 'always',
     boxSizing: 'border-box',
+    display: 'flex',
+    flexDirection: 'column',
   },
   watermark: {
     position: 'absolute',
@@ -552,7 +555,7 @@ export default function ScoutingReportPage() {
               {/* ═══════ SLIDE 1: COVER ═══════ */}
               <motion.div {...fadeIn(0)}>
                 <ReportPage noPadding>
-                  <div style={{ padding: '40px 56px 56px' }}>
+                  <div style={{ padding: '40px 56px 56px', flex: 1 }}>
                     {/* Club logo upload */}
                     <input ref={clubLogoInputRef} type="file" accept="image/*" onChange={handleClubLogoUpload} style={{ display: 'none' }} />
                     <ReportHeader
@@ -580,7 +583,7 @@ export default function ScoutingReportPage() {
                 <ReportPage>
 
                   <SectionDivider number={1} title="Análise Descritiva" />
-                  <div style={styles.card}>
+                  <div style={{ ...styles.card, flex: 1, display: 'flex', flexDirection: 'column' as const }}>
                     <div style={styles.analysisHeader}>
                       {data.player.clubLogo && (
                         <img src={`/api/image-proxy?url=${encodeURIComponent(data.player.clubLogo)}`} alt={data.player.club} style={{ width: 36, height: 36, objectFit: 'contain' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
@@ -607,7 +610,7 @@ export default function ScoutingReportPage() {
                         })}
                       </div>
                     )}
-                    <div style={styles.analysisText} contentEditable suppressContentEditableWarning>
+                    <div style={{ ...styles.analysisText, flex: 1 }} contentEditable suppressContentEditableWarning>
                       {data.analysis.text || 'Análise descritiva não disponível para este jogador. Clique aqui para inserir manualmente.'}
                     </div>
                     {(data.analysis.faixaSalarial || data.analysis.transferLuvas) && (
@@ -625,8 +628,8 @@ export default function ScoutingReportPage() {
                 <ReportPage>
 
                   <SectionDivider number={2} title="Identificação & Veredito Preditivo" />
-                  <div style={styles.grid2}>
-                    <div style={styles.card}>
+                  <div style={{ ...styles.grid2, flex: 1 }}>
+                    <div style={{ ...styles.card, display: 'flex', flexDirection: 'column' as const }}>
                       <h3 style={styles.cardTitle}>Dados do Jogador</h3>
                       <div style={styles.idGrid}>
                         {[['Nome', data.player.name], ['Idade', data.player.age ? `${data.player.age} anos` : '—'], ['Posição', data.player.position], ['Altura', data.player.height], ['Pé', data.player.foot], ['Clube', data.player.club], ['Liga', data.player.league], ['Contrato', data.player.contract]].map(([label, value]) => (
@@ -634,7 +637,7 @@ export default function ScoutingReportPage() {
                         ))}
                       </div>
                     </div>
-                    <div>
+                    <div style={{ display: 'flex', flexDirection: 'column' as const }}>
                       <div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
                         <StatBox label="Impact Score" value={data.predict.impactScore.toFixed(1)} color={C.green} subtitle="SSP / 10" />
                         <StatBox label="P(Sucesso)" value={`${data.predict.pSuccess}%`} color={C.blue} />
@@ -645,9 +648,9 @@ export default function ScoutingReportPage() {
                         <div style={styles.legendEntry}><strong>P(Sucesso):</strong> Probabilidade estimada de sucesso na adaptação ao elenco, baseada em modelo preditivo com variáveis técnicas, táticas e contextuais.</div>
                       </div>
                       {predictionLoading ? <Skeleton width="100%" height={80} /> : (
-                        <div style={{ ...styles.cardElevated, borderTop: `3px solid ${C.green}` }}>
+                        <div style={{ ...styles.cardElevated, borderTop: `3px solid ${C.green}`, flex: 1, display: 'flex', flexDirection: 'column' as const }}>
                           <div style={styles.verdictLabel}>VEREDITO</div>
-                          <p style={styles.verdictText} contentEditable suppressContentEditableWarning>{data.predict.verdict}</p>
+                          <p style={{ ...styles.verdictText, flex: 1 }} contentEditable suppressContentEditableWarning>{data.predict.verdict}</p>
                         </div>
                       )}
                     </div>
@@ -660,7 +663,7 @@ export default function ScoutingReportPage() {
                 <ReportPage>
 
                   <SectionDivider number={3} title="Matriz Qualitativa — Four Corners" />
-                  <div style={styles.grid2x2}>
+                  <div style={{ ...styles.grid2x2, flex: 1 }}>
                     {([
                       { key: 'tactical' as const, label: 'TÁTICO', color: QUADRANT.tactical },
                       { key: 'technical' as const, label: 'TÉCNICO', color: QUADRANT.technical },
@@ -685,7 +688,7 @@ export default function ScoutingReportPage() {
                 <ReportPage>
 
                   <SectionDivider number={4} title="Índices Compostos & Filtro de Elite" />
-                  <div style={styles.grid2}>
+                  <div style={{ ...styles.grid2, flex: 1 }}>
                     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                       {data.composites.length ? (
                         <ReportRadar data={data.composites} size={400} />
@@ -714,7 +717,7 @@ export default function ScoutingReportPage() {
                 <ReportPage>
 
                   <SectionDivider number={5} title="Radar de Métricas — Visão Completa" />
-                  <div style={styles.grid2}>
+                  <div style={{ ...styles.grid2, flex: 1 }}>
                     {/* Full position metrics radar */}
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                       <h3 style={{ ...styles.cardTitle, textAlign: 'center' }}>Todas as Métricas da Posição</h3>
@@ -738,7 +741,7 @@ export default function ScoutingReportPage() {
                 <ReportPage>
 
                   <SectionDivider number={6} title="Delta vs. Titular — Squad Impact" />
-                  <div style={styles.card}>
+                  <div style={{ ...styles.card, flex: 1 }}>
                     {!selectedIncumbent ? (
                       <p style={styles.placeholder}>Selecione um titular na barra acima para gerar a comparação Delta</p>
                     ) : comparisonLoading ? (
@@ -791,7 +794,7 @@ export default function ScoutingReportPage() {
                 <ReportPage>
 
                   <SectionDivider number={8} title="Contingência — Jogadores Similares" />
-                  <div style={styles.grid2}>
+                  <div style={{ ...styles.grid2, flex: 1 }}>
                     <div style={styles.card}>
                       <h3 style={styles.cardTitle}>Top 3 Similares</h3>
                       {similarityLoading ? (
@@ -826,7 +829,7 @@ export default function ScoutingReportPage() {
                 <ReportPage>
 
                   <SectionDivider number={9} title="Conclusão & Recomendação" />
-                  <div style={styles.grid3}>
+                  <div style={{ ...styles.grid3, flex: 1 }}>
                     <div style={{ ...styles.cardElevated, borderTop: `3px solid ${C.green}` }}>
                       <div style={{ ...styles.quadrantLabel, color: C.green }}>VEREDITO FINAL</div>
                       <div contentEditable suppressContentEditableWarning style={styles.conclusionText}>Jogador apresenta perfil compatível com as necessidades do elenco. Recomendação de avanço nas tratativas.</div>
@@ -933,6 +936,9 @@ const styles: Record<string, React.CSSProperties> = {
     background: C.bg,
     minHeight: '100vh',
     fontFamily: "'DM Sans', sans-serif",
+    display: 'flex',
+    flexDirection: 'column',
+    overflowX: 'hidden',
   },
   toolbar: {
     position: 'sticky',
@@ -1047,6 +1053,7 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     alignItems: 'center',
     padding: '0 24px 60px',
+    flexGrow: 1,
   },
   emptyState: {
     display: 'flex',
