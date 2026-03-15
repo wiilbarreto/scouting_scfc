@@ -12,6 +12,23 @@ import type {
 
 // ── Types ──
 
+export interface AnalysesPlayerData {
+  nome: string;
+  foto: string | null;
+  posicao: string | null;
+  idade: number | null;
+  equipe: string | null;
+  liga: string | null;
+  modelo: string | null;
+  perfil: string | null;
+  scores: Record<string, number>;
+  links: Record<string, string>;
+  analysis_text: string | null;
+  faixa_salarial: string | null;
+  transfer_luvas: string | null;
+  wyscout_match: string | null;
+}
+
 export interface ScoutingReportData {
   player: {
     name: string;
@@ -26,6 +43,14 @@ export interface ScoutingReportData {
     clusterDef: string;
     photo: string | null;
     clubLogo: string | null;
+  };
+  analysis: {
+    text: string | null;
+    scores: Record<string, number>;
+    links: Record<string, string>;
+    modelo: string | null;
+    faixaSalarial: string | null;
+    transferLuvas: string | null;
   };
   predict: {
     impactScore: number;
@@ -102,6 +127,23 @@ function parseQualitative(analysisText: string | null | undefined): {
   };
   if (!analysisText) return defaults;
   return defaults;
+}
+
+// ── Analyses Players Hook ──
+
+export function useAnalysesPlayers(search: string) {
+  return useQuery({
+    queryKey: ['scouting-report', 'analyses-players', search],
+    queryFn: async () => {
+      const params: Record<string, string> = {};
+      if (search.trim()) params.search = search.trim();
+      const r = await api.get('/analyses/players', { params });
+      return r.data as { players: AnalysesPlayerData[]; total: number };
+    },
+    staleTime: STALE_TIME,
+    gcTime: GC_TIME,
+    refetchOnWindowFocus: false,
+  });
 }
 
 // ── Main Hook ──
@@ -290,6 +332,14 @@ export function useScoutingReport(
               : 'Cluster não identificado',
             photo: profile.summary.photo_url ?? null,
             clubLogo: profile.summary.club_logo ?? null,
+          },
+          analysis: {
+            text: profile.analises?.analysis_text ?? null,
+            scores: profile.analises?.scores ?? {},
+            links: profile.analises?.links ?? {},
+            modelo: profile.analises?.modelo ?? null,
+            faixaSalarial: profile.analises?.faixa_salarial ?? null,
+            transferLuvas: profile.analises?.transfer_luvas ?? null,
           },
           predict: {
             impactScore: ssp != null ? Math.round(ssp * 10) / 10 : 0,
