@@ -148,8 +148,10 @@ export default function ReportHeader({
             />
           ) : (
             <div style={styles.imagePlaceholder}>
-              <Upload size={32} color="#B0B0B0" />
-              <span style={styles.placeholderText}>Foto do atleta</span>
+              <div style={styles.initialsCircle}>
+                {name.split(' ').filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase()}
+              </div>
+              <span className="no-print" style={styles.placeholderText}>Carregar foto abaixo</span>
             </div>
           )}
           <input
@@ -430,6 +432,20 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     gap: 16,
+  },
+  initialsCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: '50%',
+    background: 'linear-gradient(135deg, #C8102E 0%, #8B0A1E 100%)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 48,
+    fontWeight: 700,
+    color: '#FFFFFF',
+    letterSpacing: '0.02em',
   },
   placeholderText: {
     fontFamily: "'DM Sans', sans-serif",
