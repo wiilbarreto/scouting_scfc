@@ -1,4 +1,4 @@
-# Scouting Dashboard | Botafogo-SP
+# Scouting Dashboard | Santa Cruz FC
 
 Dashboard de scouting profissional com motor preditivo de ML e visualizações estilo Wyscout.
 
