@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://scouting-bfsa-react.onrender.com/api/:path*"
+      "destination": "https://scouting-scfc.onrender.com/api/:path*"
     }
   ]
 }
