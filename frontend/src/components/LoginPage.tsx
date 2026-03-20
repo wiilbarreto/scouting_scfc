@@ -25,7 +25,7 @@ export default function LoginPage({ onLogin, loading, error }: LoginPageProps) {
       <div
         className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full pointer-events-none"
         style={{
-          background: 'radial-gradient(circle, rgba(227, 6, 19, 0.06) 0%, transparent 70%)',
+          background: 'radial-gradient(circle, rgba(161, 161, 170, 0.06) 0%, transparent 70%)',
         }}
       />
 
@@ -41,15 +41,15 @@ export default function LoginPage({ onLogin, loading, error }: LoginPageProps) {
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.1, duration: 0.5 }}
-            src="/3154_imgbank_1685113109.png"
-            alt="Logo Botafogo-SA"
+            src="/2253_imgbank_1683641104.png"
+            alt="Logo Santa Cruz FC"
             className="w-20 h-20 mx-auto mb-4 object-contain"
           />
           <h1 className="font-[var(--font-display)] text-xl font-bold tracking-tight">
-            SCOUTING BFSA
+            SCOUTING SCFC
           </h1>
           <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
-            Plataforma de Analise de Jogadores
+            Departamento de Scouting — Série C
           </p>
         </div>
 
@@ -72,7 +72,7 @@ export default function LoginPage({ onLogin, loading, error }: LoginPageProps) {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@botafogo-sp.com"
+                placeholder="adscfc@santacruz.com"
                 required
                 className="w-full pl-9 pr-3 py-2.5 rounded text-sm outline-none transition-colors"
                 style={{
@@ -81,7 +81,7 @@ export default function LoginPage({ onLogin, loading, error }: LoginPageProps) {
                   color: 'var(--color-text-primary)',
                   fontFamily: 'var(--font-body)',
                 }}
-                onFocus={(e) => (e.target.style.borderColor = 'rgba(227, 6, 19, 0.4)')}
+                onFocus={(e) => (e.target.style.borderColor = 'rgba(161, 161, 170, 0.5)')}
                 onBlur={(e) => (e.target.style.borderColor = 'var(--color-border-subtle)')}
               />
             </div>
@@ -113,7 +113,7 @@ export default function LoginPage({ onLogin, loading, error }: LoginPageProps) {
                   color: 'var(--color-text-primary)',
                   fontFamily: 'var(--font-body)',
                 }}
-                onFocus={(e) => (e.target.style.borderColor = 'rgba(227, 6, 19, 0.4)')}
+                onFocus={(e) => (e.target.style.borderColor = 'rgba(161, 161, 170, 0.5)')}
                 onBlur={(e) => (e.target.style.borderColor = 'var(--color-border-subtle)')}
               />
             </div>
@@ -150,7 +150,7 @@ export default function LoginPage({ onLogin, loading, error }: LoginPageProps) {
         </form>
 
         <p className="text-center text-[10px] mt-4" style={{ color: 'var(--color-text-muted)' }}>
-          Botafogo Futebol SA — Departamento de Scouting
+          Santa Cruz FC — Departamento de Scouting
         </p>
       </motion.div>
     </div>

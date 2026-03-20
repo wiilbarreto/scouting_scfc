@@ -136,7 +136,7 @@ function IdentityResolver({
           style={{
             background: open ? 'var(--color-accent-glow)' : 'var(--color-surface-2)',
             color: open ? 'var(--color-accent)' : 'var(--color-text-muted)',
-            border: `1px solid ${open ? 'rgba(227,6,19,0.25)' : 'var(--color-border-subtle)'}`,
+            border: `1px solid ${open ? 'var(--color-accent-outline)' : 'var(--color-border-subtle)'}`,
             fontFamily: 'var(--font-display)',
           }}
         >
@@ -354,7 +354,7 @@ export default function SkillCornerPage() {
                 className="w-8 h-8 rounded-xl flex items-center justify-center"
                 style={{
                   background: 'var(--color-accent-glow)',
-                  border: '1px solid rgba(227,6,19,0.2)',
+                  border: '1px solid var(--color-accent-outline)',
                 }}
               >
                 <Activity size={16} style={{ color: 'var(--color-accent)' }} />
@@ -560,7 +560,7 @@ export default function SkillCornerPage() {
                     style={{
                       background: 'var(--color-accent-glow)',
                       color: 'var(--color-accent)',
-                      border: '1px solid rgba(227,6,19,0.2)',
+                      border: '1px solid var(--color-accent-outline)',
                       fontFamily: 'var(--font-display)',
                     }}
                   >
@@ -681,7 +681,7 @@ export default function SkillCornerPage() {
             className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
             style={{
               background: 'var(--color-accent-glow)',
-              border: '1px solid rgba(227,6,19,0.1)',
+              border: '1px solid var(--color-accent-outline)',
             }}
           >
             <Activity size={24} style={{ color: 'var(--color-accent)', opacity: 0.5 }} />

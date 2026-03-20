@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 # ── Configuration ─────────────────────────────────────────────────────
 
-SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "scouting-bfsa-secret-key-change-in-production")
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "scouting-scfc-secret-key-change-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("TOKEN_EXPIRE_MINUTES", "480"))
 
@@ -87,24 +87,24 @@ def init_db():
         cur = _execute(conn, driver, "SELECT COUNT(*) FROM users")
         count = cur.fetchone()[0]
         if count == 0:
-            default_password = os.environ.get("ADMIN_DEFAULT_PASSWORD", "botafogo2024")
+            default_password = os.environ.get("ADMIN_DEFAULT_PASSWORD", "scfc1914")
             _execute(
                 conn, driver,
                 "INSERT INTO users (email, password_hash, name, role) VALUES (?, ?, ?, ?)",
                 (
-                    "admin@botafogo-sp.com",
+                    "adscfc@santacruz.com",
                     pwd_context.hash(default_password),
                     "Administrador",
                     "admin",
                 ),
             )
             conn.commit()
-            logger.info("Default admin user created: admin@botafogo-sp.com")
+            logger.info("Default admin user created: adscfc@santacruz.com")
 
         # Ensure the primary admin account exists with correct credentials
-        admin_email = os.environ.get("ADMIN_EMAIL", "caiofelipead@gmail.com")
-        admin_password = os.environ.get("ADMIN_PASSWORD", "bfsa2026")
-        admin_name = os.environ.get("ADMIN_NAME", "Caio Felipe")
+        admin_email = os.environ.get("ADMIN_EMAIL", "adscfc@santacruz.com")
+        admin_password = os.environ.get("ADMIN_PASSWORD", "scfc1914")
+        admin_name = os.environ.get("ADMIN_NAME", "Admin SCFC")
 
         cur = _execute(conn, driver, "SELECT id, password_hash FROM users WHERE email = ?", (admin_email,))
         row = cur.fetchone()

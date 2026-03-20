@@ -116,8 +116,8 @@ export default function Layout({ user, activeTab, onTabChange, onLogout, childre
         {/* Brand */}
         <div className="px-5 py-5 flex items-center gap-3">
           <img
-            src="/3154_imgbank_1685113109.png"
-            alt="Logo Botafogo-SP"
+            src="/2253_imgbank_1683641104.png"
+            alt="Logo Santa Cruz FC"
             className="w-9 h-9 object-contain"
           />
           <div>
@@ -125,7 +125,7 @@ export default function Layout({ user, activeTab, onTabChange, onLogout, childre
               SCOUTING
             </div>
             <div className="text-[9px] tracking-[0.2em] font-semibold" style={{ color: 'var(--color-text-muted)' }}>
-              BOTAFOGO-SA
+              SANTA CRUZ FC
             </div>
           </div>
         </div>
@@ -160,7 +160,7 @@ export default function Layout({ user, activeTab, onTabChange, onLogout, childre
                         <motion.div
                           layoutId="sidebar-indicator"
                           className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full"
-                          style={{ background: 'var(--color-accent)' }}
+                          style={{ background: 'var(--color-accent)', outline: '1px solid var(--color-accent-outline)' }}
                           transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                         />
                       )}
@@ -270,7 +270,7 @@ export default function Layout({ user, activeTab, onTabChange, onLogout, childre
             >
               <div className="px-5 py-5 flex items-center gap-3">
                 <Shield size={18} strokeWidth={1.5} style={{ color: 'var(--color-accent)' }} />
-                <div className="font-[var(--font-display)] text-sm font-bold">SCOUTING BFSA</div>
+                <div className="font-[var(--font-display)] text-sm font-bold">SCOUTING SCFC</div>
               </div>
               <nav className="flex-1 px-3 space-y-4 overflow-y-auto">
                 {NAV_SECTIONS.map((section, si) => (
@@ -302,7 +302,7 @@ export default function Layout({ user, activeTab, onTabChange, onLogout, childre
                             {active && (
                               <div
                                 className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full"
-                                style={{ background: 'var(--color-accent)' }}
+                                style={{ background: 'var(--color-accent)', outline: '1px solid var(--color-accent-outline)' }}
                               />
                             )}
                             <span style={{ color: active ? 'var(--color-accent)' : 'var(--color-text-muted)' }}>

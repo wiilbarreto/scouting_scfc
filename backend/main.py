@@ -1,5 +1,5 @@
 """
-main.py — FastAPI Scouting API for Botafogo-SP
+main.py — FastAPI Scouting API for Santa Cruz FC
 ===============================================
 Replaces the Streamlit monolith with async REST endpoints.
 """
@@ -333,8 +333,8 @@ async def lifespan(app: FastAPI):
 # ── App ───────────────────────────────────────────────────────────────
 
 app = FastAPI(
-    title="Scouting BFSA API",
-    description="Backend API for the Botafogo-SP Scouting Dashboard",
+    title="Scouting SCFC API",
+    description="Backend API for the Santa Cruz FC Scouting Dashboard",
     version="2.0.0",
     lifespan=lifespan,
 )
@@ -861,7 +861,7 @@ async def get_player_profile(
             ssp_score=score,
             age=age,
             league_origin=league_actual,
-            league_target="Serie B Brasil",  # Botafogo-SP target league
+            league_target="Serie B Brasil",  # Santa Cruz FC target league
             minutes=minutes_val,
         )
 
@@ -2515,7 +2515,7 @@ async def analyze_contract_impact(
     req: ContractImpactRequest,
     current_user: dict = Depends(get_current_user),
 ):
-    """Analyze the impact of signing a player on the Botafogo-SP squad.
+    """Analyze the impact of signing a player on the Santa Cruz FC squad.
 
     Scientific basis: Pappalardo et al. (2019) PlayeRank, Kuper & Szymanski (2009)
     Soccernomics, Poli et al. (CIES 2021), Age Curves 2.0 (TransferLab),
