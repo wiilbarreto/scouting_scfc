@@ -127,6 +127,18 @@ def init_db():
             )
             conn.commit()
             logger.info("Admin user password reset: %s", admin_email)
+
+        # Ensure analyst accounts exist
+        analysts = [
+            ("paulinho", "scfc1914", "Paulinho", "analyst"),
+            ("willianbarreto", "scfc1914", "Willian Barreto", "analyst"),
+        ]
+        for a_email, a_pass, a_name, a_role in analysts:
+            cur = _execute(conn, driver, "SELECT id FROM users WHERE email = ?", (a_email,))
+            if cur.fetchone() is None:
+                _execute(conn, driver, "INSERT INTO users (email, password_hash, name, role) VALUES (?, ?, ?, ?)", (a_email, pwd_context.hash(a_pass), a_name, a_role))
+                conn.commit()
+                logger.info("Analyst user created: %s", a_email)
     finally:
         conn.close()
 
