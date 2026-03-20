@@ -130,8 +130,8 @@ def init_db():
 
         # Ensure analyst accounts exist
         analysts = [
-            ("paulinho", "scfc1914", "Paulinho", "analyst"),
-            ("willianbarreto", "scfc1914", "Willian Barreto", "analyst"),
+            ("paulinho@santacruz.com", "scfc1914", "Paulinho", "analyst"),
+            ("willianbarreto@santacruz.com", "scfc1914", "Willian Barreto", "analyst"),
         ]
         for a_email, a_pass, a_name, a_role in analysts:
             cur = _execute(conn, driver, "SELECT id FROM users WHERE email = ?", (a_email,))
